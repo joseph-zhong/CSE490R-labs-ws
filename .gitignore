@@ -1,0 +1,10 @@
+# gitignore
+
+# IntelliJ IDE 
+.idea/
+
+# Catkin workspace build
+.catkin_workspace
+build/
+devel/
+
