@@ -25,8 +25,8 @@ class ParticleFilter():
     self.MAX_VIZ_PARTICLES = int(rospy.get_param("~max_viz_particles")) # The maximum number of particles to visualize
 
     self.particle_indices = np.arange(self.MAX_PARTICLES)
-    self.particles = np.zeros((self.MAX_PARTICLES,3)) # Numpy matrix of dimension MAX_PARTICLES x 3
-    self.weights = np.ones(self.MAX_PARTICLES) / float(self.MAX_PARTICLES) # Numpy matrix containig weight for each particle
+    self.particles = np.zeros((self.MAX_PARTICLES, 3))  # Numpy matrix of dimension MAX_PARTICLES x 3
+    self.weights = np.ones(self.MAX_PARTICLES) / float(self.MAX_PARTICLES)  # Numpy matrix containig weight for each particle
 
     self.state_lock = Lock() # A lock used to prevent concurrency issues. You do not need to worry about this
 
@@ -40,8 +40,10 @@ class ParticleFilter():
     # Use the 'static_map' service (launched by MapServer.launch) to get the map
     # Will be used to initialize particles and SensorModel
     # Store map in variable called 'map_msg'
+    # Tim: I think we use nav_msgs/GetMap
     # YOUR CODE HERE
-    
+
+
     
     
     
@@ -71,6 +73,7 @@ class ParticleFilter():
     if self.MOTION_MODEL_TYPE == "kinematic":
       self.motion_model = KinematicMotionModel(self.particles, self.state_lock) # An object used for applying kinematic motion model
       self.motion_sub = rospy.Subscriber(rospy.get_param("~motion_topic", "/vesc/sensors/core"), VescStateStamped, self.motion_model.motion_cb, queue_size=1)
+      # Tim: ^ The topic above is where we get our velocity from
     elif self.MOTION_MODEL_TYPE == "odometry":
       self.motion_model = OdometryMotionModel(self.particles, self.state_lock)# An object used for applying odometry motion model
       self.motion_sub = rospy.Subscriber(rospy.get_param("~motion_topic", "/vesc/odom"), Odometry, self.motion_model.motion_cb, queue_size=1)
@@ -139,7 +142,7 @@ if __name__ == '__main__':
       else:
         print "Unrecognized resampling method: "+ pf.RESAMPLE_TYPE      
       
-      pf.visualize() # Perform visualization
+      pf.visualize()  # Perform visualization
 
 
 
