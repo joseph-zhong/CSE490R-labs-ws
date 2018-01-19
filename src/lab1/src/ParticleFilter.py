@@ -6,11 +6,13 @@ import time
 import utils as Utils
 import tf.transformations
 import tf
+from pprint import pprint
 from threading import Lock
 
 from vesc_msgs.msg import VescStateStamped
 from sensor_msgs.msg import LaserScan
 from nav_msgs.srv import GetMap
+from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseStamped, PoseArray, PoseWithCovarianceStamped, PointStamped
 
 from ReSample import ReSampler
@@ -42,17 +44,11 @@ class ParticleFilter():
     # Store map in variable called 'map_msg'
     # Tim: I think we use nav_msgs/GetMap
     # YOUR CODE HERE
-
-
-    
-    
-    
-    
-    
-    
-    
-    
-    
+    map_msg_srv = rospy.ServiceProxy("static_map", GetMap)
+    try:
+      map_msg = map_msg_srv()
+    except rospy.ServiceException as exc:
+      print("Service did not process: request " + str(exc))
 
     # Globally initialize the particles
     self.initialize_global(map_msg)

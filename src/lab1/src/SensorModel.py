@@ -2,18 +2,18 @@
 
 import numpy as np
 import rospy
-import range_libc
+#import range_libc
 import time
 from threading import Lock
 
 THETA_DISCRETIZATION = 112 # Discretization of scanning angle
 INV_SQUASH_FACTOR = 2.2    # Factor for helping the weight distribution to be less peaked
 
-Z_SHORT =   # Weight for short reading
-Z_MAX =     # Weight for max reading
-Z_RAND =    # Weight for random reading
-SIGMA_HIT = # Noise value for hit reading
-Z_HIT =     # Weight for hit reading
+Z_SHORT = 1  # Weight for short reading
+Z_MAX = 1    # Weight for max reading
+Z_RAND = 1   # Weight for random reading
+SIGMA_HIT = 1# Noise value for hit reading
+Z_HIT = 1    # Weight for hit reading
 
 class SensorModel:
 	
