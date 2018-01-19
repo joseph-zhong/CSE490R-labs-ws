@@ -61,12 +61,18 @@ class SensorModel:
     self.state_lock.release()
     
   def precompute_sensor_model(self, max_range_px):
+    """
+    Returns a table with columns as expectation while rows as observation measurement
+    :param max_range_px:
+    :return:
+    """
 
     table_width = int(max_range_px) + 1
     sensor_model_table = np.zeros((table_width,table_width))
 
     # Populate sensor model table as specified
-    # YOUR CODE HERE  
+    # Note that the row corresponds to the observed measurement and the column corresponds to the expected measurement
+    # YOUR CODE HERE
     return sensor_model_table
 
   def apply_sensor_model(self, proposal_dist, obs, weights):

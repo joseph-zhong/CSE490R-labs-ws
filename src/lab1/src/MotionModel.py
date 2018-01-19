@@ -44,7 +44,7 @@ class KinematicMotionModel:
     self.SPEED_TO_ERPM_GAIN   = float(rospy.get_param("/vesc/speed_to_erpm_gain"))   # Gain conversion param from rpm to speed
     self.STEERING_TO_SERVO_OFFSET = float(rospy.get_param("/vesc/steering_angle_to_servo_offset")) # Offset conversion param from servo position to steering angle
     self.STEERING_TO_SERVO_GAIN   = float(rospy.get_param("/vesc/steering_angle_to_servo_gain")) # Gain conversion param from servo position to steering angle
-    
+
     if state_lock is None:
       self.state_lock = Lock()
     else:
@@ -59,6 +59,11 @@ class KinematicMotionModel:
     self.last_servo_cmd = msg.data # Just update servo command
 
   def motion_cb(self, msg):
+    """
+    Compute controls, with respect to dt
+    :param msg:
+    :return:
+    """
     self.state_lock.acquire()
     
     if self.last_servo_cmd is None:
