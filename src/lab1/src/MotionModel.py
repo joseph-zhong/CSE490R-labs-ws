@@ -109,6 +109,7 @@ class KinematicMotionModel:
     :param msg:
     :return:
     """
+    print "motion_cb"
     self.state_lock.acquire()
 
     if self.last_servo_cmd is None:
@@ -121,44 +122,38 @@ class KinematicMotionModel:
     # Convert raw msgs to controls
     # Note that control = (raw_msg_val - offset_param) / gain_param < This converts from raw motor speed to car velocity
     # Tim: Also use the same formula above to the steering angle
-    pprint(msg)
+    # pprint(msg)
     curr_speed = (msg.state.speed - self.SPEED_TO_ERPM_OFFSET) / self.SPEED_TO_ERPM_GAIN
     curr_steering_angle = (self.last_servo_cmd - self.STEERING_TO_SERVO_OFFSET) / self.STEERING_TO_SERVO_GAIN
-    # TODO josephz: what the fuck does this guy do?
-    # dt = msg.header.stamp - self.last_vesc_stamp
+    dt = msg.header.stamp - self.last_vesc_stamp
 
-    self.apply_motion_model(proposal_dist=self.particles, control=(curr_speed, curr_steering_angle))
+    self.apply_motion_model(proposal_dist=self.particles, control=(curr_speed, curr_steering_angle, dt))
     self.last_vesc_stamp = msg.header.stamp
     self.state_lock.release()
     
   def apply_motion_model(self, proposal_dist, control):
+    print "applying motion model"
     # Update the proposal distribution by applying the control to each particle
     # YOUR CODE HERE
 
-    v, delta = control
-    beta = np.arctan(np.tan(delta/ 2))
+    # todo: review convert dt to value?
+    v, delta, dt = control
+    dt = dt.to_sec()
 
-    # Kinetic to Odom conversion to remain consistent with particle update.
-    odom_control = np.array([
-      v * np.cos(self.particles[:, 2]), # t - 1
-      v * np.sin(self.particles[:, 2]),
-      v / CAR_LEN * np.sin(2 * beta)       # time t ->
-    ])
-    print control
-    print odom_control
+    noise = np.random.normal(loc=ODOM_NOISE_MEAN, scale=ODOM_NOISE_STD, size=(len(self.particles), 2))
+    noisy_v = v + noise[:, 0]
+    noisy_delta = delta + noise[:, 1]
 
-    # Compute particle updates.
-    # TODO josephz: This can be faster as well... by doing a vector add.
-    noiasdf = np.random.normal(loc=ODOM_NOISE_MEAN, scale=ODOM_NOISE_STD, size=self.particles.shape)
-    noisy_control = odom_control + noiasdf
-    a = np.cos(self.particles[:, 2]) * noisy_control[:, 0]
-    b = np.sin(self.particles[:, 2]) * noisy_control[:, 1]
+    theta = self.particles[:, 2]
 
-    print a, b
-    print a.dtype, b.dtype
-    self.particles[:, 0] += a + b
+    delta_theta = noisy_v / CAR_LEN * np.sin(noisy_delta) * dt
+    delta_x = CAR_LEN / np.sin(noisy_delta) * (np.sin(theta + delta_theta) - np.sin(theta))
+    delta_y = CAR_LEN / np.sin(noisy_delta) * (np.cos(theta) - np.cos(theta + delta_theta))
 
-    self.particles[:, 1] += -np.sin(self.particles[:, 2]) * noisy_control[:, 0] \
-                            + np.cos(self.particles[:, 2]) * noisy_control[:, 1]
-    self.particles[:, 2] += noisy_control[:, 2]
+    self.particles[:, 0] += delta_x
+    self.particles[:, 1] += delta_y
+    self.particles[:, 2] += delta_theta
+    self.particles[:, 2] %= (2 * np.pi)
     pprint(self.particles)
+
+    # pprint(self.particles)
