@@ -83,8 +83,33 @@ class KinematicMotionModel:
   def apply_motion_model(self, proposal_dist, control):
     # Update the proposal distribution by applying the control to each particle
     # YOUR CODE HERE
-    pass
-    
-if __name__ == '__main__':
-  pass
-    
+
+    v, delta = control
+    beta = np.arctan(np.tan(delta/ 2))
+
+    # Kinetic to Odom conversion to remain consistent with particle update.
+    odom_control = np.array([
+      v * np.cos(self.particles[:, 2]), # t - 1
+      v * np.sin(self.particles[:, 2]),
+      v / CAR_LEN * np.sin(2 * beta)       # time t ->
+    ])
+    print control
+    print odom_control
+
+    # Compute particle updates.
+    # TODO josephz: This can be faster as well... by doing a vector add.
+    noiasdf = np.random.normal(loc=ODOM_NOISE_MEAN, scale=ODOM_NOISE_STD, size=self.particles.shape)
+    noisy_control = odom_control + noiasdf
+    a = np.cos(self.particles[:, 2]) * noisy_control[:, 0]
+    b = np.sin(self.particles[:, 2]) * noisy_control[:, 1]
+
+    print a, b
+    print a.dtype, b.dtype
+    self.particles[:, 0] += a + b
+
+    self.particles[:, 1] += -np.sin(self.particles[:, 2]) * noisy_control[:, 0] \
+                            + np.cos(self.particles[:, 2]) * noisy_control[:, 1]
+    self.particles[:, 2] += noisy_control[:, 2]
+    pprint(self.particles)
+
+>>>>>>> Stashed changes
