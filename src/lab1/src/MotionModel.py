@@ -102,15 +102,12 @@ class KinematicMotionModel:
 
   def motion_cb(self, msg):
     self.state_lock.acquire()
-    print "motion cb"
-    
+
     if self.last_servo_cmd is None:
       return
-    print 'a'
     if self.last_vesc_stamp is None:
       self.last_vesc_stamp = msg.header.stamp
       # return
-    print 'b'
 
 
     # Convert raw msgs to controls
