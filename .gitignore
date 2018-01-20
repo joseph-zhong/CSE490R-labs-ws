@@ -10,3 +10,5 @@ devel/
 
 # pyc
 **.pyc
+# pyc files
+*.pyc

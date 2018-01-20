@@ -33,22 +33,24 @@ class OdometryMotionModel:
     self.state_lock.acquire()
     pose = np.array([msg.pose.pose.position.x, msg.pose.pose.position.y, Utils.quaternion_to_angle(msg.pose.pose.orientation)])
 
+    def rotation_matrix(theta):
+        cos_theta = np.cos(theta)
+        sin_theta = np.sin(theta)
+        return np.array([[cos_theta, -sin_theta], [sin_theta, cos_theta]])
+
     if isinstance(self.last_pose, np.ndarray):
       old_control = pose - self.last_pose
-      delta_x = old_control[0] * math.cos(self.last_pose[2]) + old_control[1] * math.sin(self.last_pose[2])
-      delta_y = -old_control[0] * math.sin(self.last_pose[2]) + old_control[1] * math.cos(self.last_pose[2])
-      control = np.array([delta_x, delta_y, old_control[2]])
+      x_prime, y_prime, theta_prime = old_control
+      theta = self.last_pose[2]
 
-      # TODO: This just needs an extension.
-      # rot = np.array([[np.cos(self.last_pose[2]), np.sin(self.last_pose[2])], [-np.sin(self.last_pose[2]), np.cos(self.last_pose[2])]])
-      # test_control = np.matmul(rot, old_control[:2])
-      #
+      delta_x, delta_y = rotation_matrix(theta).T.dot(np.array([x_prime, y_prime]))
+      control = np.array([delta_x, delta_y, theta_prime])
+
+      # Testing cleaner implementation of rotation
       # pprint(control)
       # pprint(test_control)
+      # assert np.all(control == test_control)
 
-      #assert np.all(control == test_control)
-
-      # pprint(control)
       # Compute the control from the msg and last_pose
       # YOUR CODE HERE
       # Compute control here
@@ -74,6 +76,7 @@ class OdometryMotionModel:
     self.particles[:, 0] += np.cos(self.particles[:, 2]) * noisy_control[:, 0] + np.sin(self.particles[:, 2]) * noisy_control[:, 1]
     self.particles[:, 1] += -np.sin(self.particles[:, 2]) * noisy_control[:, 0] + np.cos(self.particles[:, 2]) * noisy_control[:, 1]
     self.particles[:, 2] += noisy_control[:, 2]
+    self.particles[:, 2] %= (2 * np.pi)
     pprint(self.particles)
     
 class KinematicMotionModel:
@@ -86,7 +89,7 @@ class KinematicMotionModel:
     self.SPEED_TO_ERPM_GAIN = float(rospy.get_param("/vesc/speed_to_erpm_gain"))   # Gain conversion param from rpm to speed
     self.STEERING_TO_SERVO_OFFSET = float(rospy.get_param("/vesc/steering_angle_to_servo_offset")) # Offset conversion param from servo position to steering angle
     self.STEERING_TO_SERVO_GAIN = float(rospy.get_param("/vesc/steering_angle_to_servo_gain")) # Gain conversion param from servo position to steering angle
-    
+
     if state_lock is None:
       self.state_lock = Lock()
     else:
@@ -101,6 +104,11 @@ class KinematicMotionModel:
     self.last_servo_cmd = msg.data # Just update servo command
 
   def motion_cb(self, msg):
+    """
+    Compute controls, with respect to dt
+    :param msg:
+    :return:
+    """
     self.state_lock.acquire()
 
     if self.last_servo_cmd is None:
@@ -146,12 +154,11 @@ class KinematicMotionModel:
     a = np.cos(self.particles[:, 2]) * noisy_control[:, 0]
     b = np.sin(self.particles[:, 2]) * noisy_control[:, 1]
 
-    print a
-    print b
+    print a, b
+    print a.dtype, b.dtype
     self.particles[:, 0] += a + b
 
     self.particles[:, 1] += -np.sin(self.particles[:, 2]) * noisy_control[:, 0] \
                             + np.cos(self.particles[:, 2]) * noisy_control[:, 1]
     self.particles[:, 2] += noisy_control[:, 2]
     pprint(self.particles)
-
