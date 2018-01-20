@@ -3,8 +3,15 @@
 import rospy
 import numpy as np
 import utils as Utils
+import math
 from std_msgs.msg import Float64
 from threading import Lock
+
+from pprint import pprint
+
+# Delete this later
+from nav_msgs.msg import Odometry
+
 
 
 class OdometryMotionModel:
@@ -19,9 +26,15 @@ class OdometryMotionModel:
     
   def motion_cb(self, msg):
     self.state_lock.acquire()
-      
-    if isinstance(self.last_pose, np.ndarray):
+    pprint(msg)
+    pose = np.array([msg.pose.position.x, msg.pose.position.y, Utils.quaternion_to_angle(msg.pose.Quaternion)])
 
+    if isinstance(self.last_pose, np.ndarray):
+      old_control = pose - self.last_pose
+      delta_x = old_control[0] * math.cos(self.last_pose[2]) + old_control[1] * math.sin(self.last_pose[2])
+      delta_y = -old_control[0] * math.sin(self.last_pose[2]) + old_control[1] * math.cos(self.last_pose[2])
+      control = np.array([delta_x, delta_y, old_control[2]])
+      pprint(control)
       # Compute the control from the msg and last_pose
       # YOUR CODE HERE
       # Compute control here
@@ -69,10 +82,16 @@ class KinematicMotionModel:
 
     if self.last_vesc_stamp is None:
       self.last_vesc_stamp = msg.header.stamp
+      return
+
 
     # Convert raw msgs to controls
     # Note that control = (raw_msg_val - offset_param) / gain_param < This converts from raw motor speed to car velocity
     # Tim: Also use the same formula above to the steering angle
+
+    curr_speed = (msg.speed - self.SPEED_TO_ERPM_OFFSET) / self.SPEED_TO_ERPM_GAIN
+    curr_steering_angle = (self.last_servo_cmd - self.STEERING_TO_SERVO_OFFSET) / self.STEERING_TO_SERVO_GAIN
+    dt = msg.header.stamp - self.last_vesc_stamp
 
     self.apply_motion_model(proposal_dist=self.particles, control=[curr_speed, curr_steering_angle, dt])
     self.last_vesc_stamp = msg.header.stamp

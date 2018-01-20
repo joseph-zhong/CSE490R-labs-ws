@@ -46,7 +46,7 @@ class ParticleFilter():
     # YOUR CODE HERE
     map_msg_srv = rospy.ServiceProxy("static_map", GetMap)
     try:
-      map_msg = map_msg_srv()
+      map_msg = map_msg_srv().map
     except rospy.ServiceException as exc:
       print("Service did not process: request " + str(exc))
 
@@ -62,8 +62,8 @@ class ParticleFilter():
     self.RESAMPLE_TYPE = rospy.get_param("~resample_type", "naiive") # Whether to use naiive or low variance sampling
     self.resampler = ReSampler(self.particles, self.weights, self.state_lock)  # An object used for resampling
 
-    self.sensor_model = SensorModel(map_msg, self.particles, self.weights, self.state_lock) # An object used for applying sensor model
-    self.laser_sub = rospy.Subscriber(rospy.get_param("~scan_topic", "/scan"), LaserScan, self.sensor_model.lidar_cb, queue_size=1)
+    #self.sensor_model = SensorModel(map_msg, self.particles, self.weights, self.state_lock) # An object used for applying sensor model
+    #self.laser_sub = rospy.Subscriber(rospy.get_param("~scan_topic", "/scan"), LaserScan, self.sensor_model.lidar_cb, queue_size=1)
     
     self.MOTION_MODEL_TYPE = rospy.get_param("~motion_model", "kinematic") # Whether to use the odometry or kinematics based motion model
     if self.MOTION_MODEL_TYPE == "kinematic":
@@ -77,7 +77,7 @@ class ParticleFilter():
       print "Unrecognized motion model: "+ self.MOTION_MODEL_TYPE
       assert(False)
     
-    # Use to initialize through rviz. Check clicked_pose_cb for more info    
+    # Use to initialize through rviz. Check clicked_pose_cb for more info
     self.pose_sub  = rospy.Subscriber("/initialpose", PoseWithCovarianceStamped, self.clicked_pose_cb, queue_size=1)
 
   # Initialize the particles to cover the map
@@ -102,7 +102,7 @@ class ParticleFilter():
   # Remember to apply a reasonable amount of Gaussian noise to each particle's pose
   def clicked_pose_cb(self, msg):
     self.state_lock.acquire()
-    
+    self.motion_model.last_pose = msg.pose
     # YOUR CODE HERE
     
     self.state_lock.release()
@@ -127,9 +127,9 @@ if __name__ == '__main__':
   
   while not rospy.is_shutdown(): # Keep going until we kill it
     # Callbacks are running in separate threads
-    if pf.sensor_model.do_resample: # Check if the sensor model says it's time to resample
-      pf.sensor_model.do_resample = False # Reset so that we don't keep resampling
-      
+    #if pf.sensor_model.do_resample: # Check if the sensor model says it's time to resample
+    #  pf.sensor_model.do_resample = False # Reset so that we don't keep resampling
+
       # Resample
       if pf.RESAMPLE_TYPE == "naiive":
         pf.resampler.resample_naiive()
