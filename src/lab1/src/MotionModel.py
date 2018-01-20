@@ -33,22 +33,27 @@ class OdometryMotionModel:
     self.state_lock.acquire()
     pose = np.array([msg.pose.pose.position.x, msg.pose.pose.position.y, Utils.quaternion_to_angle(msg.pose.pose.orientation)])
 
+    def rotation_matrix(theta):
+        cos_theta = np.cos(theta)
+        sin_theta = np.sin(theta)
+        return np.array([[cos_theta, -sin_theta], [sin_theta, cos_theta]])
+
     if isinstance(self.last_pose, np.ndarray):
       old_control = pose - self.last_pose
       delta_x = old_control[0] * math.cos(self.last_pose[2]) + old_control[1] * math.sin(self.last_pose[2])
       delta_y = -old_control[0] * math.sin(self.last_pose[2]) + old_control[1] * math.cos(self.last_pose[2])
       control = np.array([delta_x, delta_y, old_control[2]])
 
-      # TODO: This just needs an extension.
-      # rot = np.array([[np.cos(self.last_pose[2]), np.sin(self.last_pose[2])], [-np.sin(self.last_pose[2]), np.cos(self.last_pose[2])]])
-      # test_control = np.matmul(rot, old_control[:2])
-      #
-      # pprint(control)
-      # pprint(test_control)
+      x_prime, y_prime, theta_prime = old_control
+      theta = self.last_pose[2]
+      delta_x_y = rotation_matrix(theta).T.dot(np.array([x_prime, y_prime]))
+      test_control = np.array([delta_x_y[0], delta_x_y[1], theta_prime])
 
-      #assert np.all(control == test_control)
+      # Testing cleaner implementation of rotation
+      pprint(control)
+      pprint(test_control)
+      assert np.all(control == test_control)
 
-      # pprint(control)
       # Compute the control from the msg and last_pose
       # YOUR CODE HERE
       # Compute control here
