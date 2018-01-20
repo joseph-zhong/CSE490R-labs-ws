@@ -9,4 +9,4 @@ build/
 devel/
 
 # pyc files
-*.pyc
+**.pyc
