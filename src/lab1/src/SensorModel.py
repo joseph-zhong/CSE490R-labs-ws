@@ -2,18 +2,18 @@
 
 import numpy as np
 import rospy
-import range_libc
+#import range_libc
 import time
 from threading import Lock
 
 THETA_DISCRETIZATION = 112 # Discretization of scanning angle
 INV_SQUASH_FACTOR = 2.2    # Factor for helping the weight distribution to be less peaked
 
-Z_SHORT =   # Weight for short reading
-Z_MAX =     # Weight for max reading
-Z_RAND =    # Weight for random reading
-SIGMA_HIT = # Noise value for hit reading
-Z_HIT =     # Weight for hit reading
+Z_SHORT = 1  # Weight for short reading
+Z_MAX = 1    # Weight for max reading
+Z_RAND = 1   # Weight for random reading
+SIGMA_HIT = 1# Noise value for hit reading
+Z_HIT = 1    # Weight for hit reading
 
 class SensorModel:
 	
@@ -29,10 +29,11 @@ class SensorModel:
     self.LASER_RAY_STEP = int(rospy.get_param("~laser_ray_step")) # Step for downsampling laser scans
     self.MAX_RANGE_METERS = float(rospy.get_param("~max_range_meters")) # The max range of the laser
     
-    oMap = range_libc.PyOMap(map_msg) # A version of the map that range_libc can understand
+    #oMap = range_libc.PyOMap(map_msg) # A version of the map that range_libc can understand
+    # Tim: Compute expected range measurements and weights
     max_range_px = int(self.MAX_RANGE_METERS / map_msg.info.resolution) # The max range in pixels of the laser
-    self.range_method = range_libc.PyCDDTCast(oMap, max_range_px, THETA_DISCRETIZATION) # The range method that will be used for ray casting
-    self.range_method.set_sensor_model(self.precompute_sensor_model(max_range_px)) # Load the sensor model expressed as a table
+    #self.range_method = range_libc.PyCDDTCast(oMap, max_range_px, THETA_DISCRETIZATION) # The range method that will be used for ray casting
+    #self.range_method.set_sensor_model(self.precompute_sensor_model(max_range_px)) # Load the sensor model expressed as a table
     self.queries = None
     self.ranges = None
     self.laser_angles = None # The angles of each ray
@@ -72,6 +73,7 @@ class SensorModel:
 
     # Populate sensor model table as specified
     # Note that the row corresponds to the observed measurement and the column corresponds to the expected measurement
+    # Tim: Each column is the expected measurement, row corresponds to observed measurement
     # YOUR CODE HERE
     return sensor_model_table
 
