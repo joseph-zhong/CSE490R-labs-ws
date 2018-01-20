@@ -40,19 +40,16 @@ class OdometryMotionModel:
 
     if isinstance(self.last_pose, np.ndarray):
       old_control = pose - self.last_pose
-      delta_x = old_control[0] * math.cos(self.last_pose[2]) + old_control[1] * math.sin(self.last_pose[2])
-      delta_y = -old_control[0] * math.sin(self.last_pose[2]) + old_control[1] * math.cos(self.last_pose[2])
-      control = np.array([delta_x, delta_y, old_control[2]])
-
       x_prime, y_prime, theta_prime = old_control
       theta = self.last_pose[2]
-      delta_x_y = rotation_matrix(theta).T.dot(np.array([x_prime, y_prime]))
-      test_control = np.array([delta_x_y[0], delta_x_y[1], theta_prime])
+
+      delta_x, delta_y = rotation_matrix(theta).T.dot(np.array([x_prime, y_prime]))
+      control = np.array([delta_x, delta_y, theta_prime])
 
       # Testing cleaner implementation of rotation
-      pprint(control)
-      pprint(test_control)
-      assert np.all(control == test_control)
+      # pprint(control)
+      # pprint(test_control)
+      # assert np.all(control == test_control)
 
       # Compute the control from the msg and last_pose
       # YOUR CODE HERE
@@ -79,6 +76,7 @@ class OdometryMotionModel:
     self.particles[:, 0] += np.cos(self.particles[:, 2]) * noisy_control[:, 0] + np.sin(self.particles[:, 2]) * noisy_control[:, 1]
     self.particles[:, 1] += -np.sin(self.particles[:, 2]) * noisy_control[:, 0] + np.cos(self.particles[:, 2]) * noisy_control[:, 1]
     self.particles[:, 2] += noisy_control[:, 2]
+    self.particles[:, 2] %= (2 * np.pi)
     pprint(self.particles)
     
 class KinematicMotionModel:
