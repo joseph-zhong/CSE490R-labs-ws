@@ -34,13 +34,6 @@ class ParticleFilter():
 
     self.state_lock = Lock() # A lock used to prevent concurrency issues. You do not need to worry about this
 
-
-
-
-
-
-
-    
     # Use the 'static_map' service (launched by MapServer.launch) to get the map
     # Will be used to initialize particles and SensorModel
     # Store map in variable called 'map_msg'
@@ -50,7 +43,7 @@ class ParticleFilter():
     try:
       map_msg = map_msg_srv().map
     except rospy.ServiceException as exc:
-      print("Service did not process: request " + str(exc))
+      raise rospy.ServiceException("Service did not process: request " + str(exc))
 
     # Globally initialize the particles
     self.initialize_global(map_msg)
@@ -103,7 +96,7 @@ class ParticleFilter():
   def expected_pose(self):
     return np.average(self.motion_model.particles, weights=self.weights, axis=0)
     # TODO: Tim: Get rid of the weights
-    
+
   # Callback for '/initialpose' topic. RVIZ publishes a message to this topic when you specify an initial pose using its GUI
   # Reinitialize your particles and weights according to the received initial pose
   # Remember to apply a reasonable amount of Gaussian noise to each particle's pose

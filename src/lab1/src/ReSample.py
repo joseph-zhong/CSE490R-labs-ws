@@ -17,7 +17,7 @@ class ReSampler:
     self.state_lock.acquire()
     # Use np.random.choice to re-sample 
     # YOUR CODE HERE
-    
+
     self.state_lock.release()
   
   def resample_low_variance(self):
