@@ -81,6 +81,10 @@ class SensorModel:
     table_width = int(max_range_px) + 1
     sensor_model_table = np.zeros((table_width,table_width))
 
+
+    # TODO: All four models here; calculate interpolated E[z_t | x_t]
+    # Tam - Calculate z_t^k* using x_t (from downsampled angles???)
+
     # Populate sensor model table as specified
     # Note that the row corresponds to the observed measurement and the column corresponds to the expected measurement
     # YOUR CODE HERE
