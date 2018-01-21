@@ -2,7 +2,7 @@
 
 import numpy as np
 import rospy
-#import range_libc
+import range_libc
 import time
 from threading import Lock
 
@@ -29,11 +29,11 @@ class SensorModel:
     self.LASER_RAY_STEP = int(rospy.get_param("~laser_ray_step")) # Step for downsampling laser scans
     self.MAX_RANGE_METERS = float(rospy.get_param("~max_range_meters")) # The max range of the laser
     
-    #oMap = range_libc.PyOMap(map_msg) # A version of the map that range_libc can understand
+    oMap = range_libc.PyOMap(map_msg) # A version of the map that range_libc can understand
     # Tim: Compute expected range measurements and weights
     max_range_px = int(self.MAX_RANGE_METERS / map_msg.info.resolution) # The max range in pixels of the laser
-    #self.range_method = range_libc.PyCDDTCast(oMap, max_range_px, THETA_DISCRETIZATION) # The range method that will be used for ray casting
-    #self.range_method.set_sensor_model(self.precompute_sensor_model(max_range_px)) # Load the sensor model expressed as a table
+    self.range_method = range_libc.PyCDDTCast(oMap, max_range_px, THETA_DISCRETIZATION) # The range method that will be used for ray casting
+    self.range_method.set_sensor_model(self.precompute_sensor_model(max_range_px)) # Load the sensor model expressed as a table
     self.queries = None
     self.ranges = None
     self.laser_angles = None # The angles of each ray
@@ -52,7 +52,15 @@ class SensorModel:
     # Keep efficiency in mind, including by caching certain things that won't change across future iterations of this callback
   
     # YOUR CODE HERE
-    
+    # Tam - Downsampled angles shouldn't change.
+    if self.downsampled_angles is None:
+        print msg
+        self.downsampled_angles = np.arange(msg.angle_min, msg.angle_max, self.LASER_RAY_STEP, dtype=np.float32)
+
+    obs = (None, None)
+    obs[0] = np.array(msg.ranges[::self.LASER_RAY_STEP], dtype=np.float32)
+    obs[1] = self.downsampled_angles
+
     self.apply_sensor_model(self.particles, obs, self.weights)
     self.weights /= np.sum(self.weights)
     
@@ -70,6 +78,10 @@ class SensorModel:
 
     table_width = int(max_range_px) + 1
     sensor_model_table = np.zeros((table_width,table_width))
+
+
+    # TODO: All four models here; calculate interpolated E[z_t | x_t]
+    # Tam - Calculate z_t^k* using x_t (from downsampled angles???)
 
     # Populate sensor model table as specified
     # Note that the row corresponds to the observed measurement and the column corresponds to the expected measurement
