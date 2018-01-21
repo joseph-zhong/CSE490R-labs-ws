@@ -32,13 +32,6 @@ class ParticleFilter():
 
     self.state_lock = Lock() # A lock used to prevent concurrency issues. You do not need to worry about this
 
-
-
-
-
-
-
-    
     # Use the 'static_map' service (launched by MapServer.launch) to get the map
     # Will be used to initialize particles and SensorModel
     # Store map in variable called 'map_msg'
@@ -48,7 +41,7 @@ class ParticleFilter():
     try:
       map_msg = map_msg_srv().map
     except rospy.ServiceException as exc:
-      print("Service did not process: request " + str(exc))
+      raise rospy.ServiceException("Service did not process: request " + str(exc))
 
     # Globally initialize the particles
     self.initialize_global(map_msg)
@@ -62,8 +55,8 @@ class ParticleFilter():
     self.RESAMPLE_TYPE = rospy.get_param("~resample_type", "naiive") # Whether to use naiive or low variance sampling
     self.resampler = ReSampler(self.particles, self.weights, self.state_lock)  # An object used for resampling
 
-    #self.sensor_model = SensorModel(map_msg, self.particles, self.weights, self.state_lock) # An object used for applying sensor model
-    #self.laser_sub = rospy.Subscriber(rospy.get_param("~scan_topic", "/scan"), LaserScan, self.sensor_model.lidar_cb, queue_size=1)
+    self.sensor_model = SensorModel(map_msg, self.particles, self.weights, self.state_lock) # An object used for applying sensor model
+    self.laser_sub = rospy.Subscriber(rospy.get_param("~scan_topic", "/scan"), LaserScan, self.sensor_model.lidar_cb, queue_size=1)
     
     self.MOTION_MODEL_TYPE = rospy.get_param("~motion_model", "kinematic") # Whether to use the odometry or kinematics based motion model
     if self.MOTION_MODEL_TYPE == "kinematic":
@@ -87,15 +80,20 @@ class ParticleFilter():
     
   # Publish a tf between the laser and the map
   # This is necessary in order to visualize the laser scan within the map
-  def publish_tf(self,pose):
-  # Use self.pub_tf
-  # YOUR CODE HERE
-    pass
+  def publish_tf(self, pose):
+    # Use self.pub_tf
+    # YOUR CODE HERE
+
+    x, y, theta = pose
+    translation = (x, y, 0)
+    rotation = tf.transformations.quaternion_from_euler(0, 0, theta)
+    # todo josephz: review parent vs child.
+    self.pub_tf.sendTransform(translation, rotation, rospy.Time.now(), "map", "base_link")
 
   # Returns the expected pose given the current particles and weights
   def expected_pose(self):
   # YOUR CODE HERE
-    pass
+    return np.average(self.motion_model.particles, weights=self.weights, axis=0)
     
   # Callback for '/initialpose' topic. RVIZ publishes a message to this topic when you specify an initial pose using its GUI
   # Reinitialize your particles and weights according to the received initial pose
@@ -103,6 +101,7 @@ class ParticleFilter():
   def clicked_pose_cb(self, msg):
     self.state_lock.acquire()
     self.motion_model.last_pose = msg.pose
+
     # YOUR CODE HERE
     
     self.state_lock.release()
@@ -117,7 +116,7 @@ class ParticleFilter():
     self.state_lock.acquire()
     
     # YOUR CODE HERE
-    
+
     self.state_lock.release()
   
 # Suggested main 
