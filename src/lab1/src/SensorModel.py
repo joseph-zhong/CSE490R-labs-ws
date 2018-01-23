@@ -3,6 +3,7 @@
 import numpy as np
 import rospy
 import range_libc
+from scipy.stats import norm
 import time
 from threading import Lock
 
@@ -30,7 +31,6 @@ class SensorModel:
     self.MAX_RANGE_METERS = float(rospy.get_param("~max_range_meters")) # The max range of the laser
     
     oMap = range_libc.PyOMap(map_msg) # A version of the map that range_libc can understand
-    # Tim: Compute expected range measurements and weights
     max_range_px = int(self.MAX_RANGE_METERS / map_msg.info.resolution) # The max range in pixels of the laser
     self.range_method = range_libc.PyCDDTCast(oMap, max_range_px, THETA_DISCRETIZATION) # The range method that will be used for ray casting
     self.range_method.set_sensor_model(self.precompute_sensor_model(max_range_px)) # Load the sensor model expressed as a table
@@ -57,9 +57,9 @@ class SensorModel:
         print msg
         self.downsampled_angles = np.arange(msg.angle_min, msg.angle_max, self.LASER_RAY_STEP, dtype=np.float32)
 
-    obs = (None, None)
-    obs[0] = np.array(msg.ranges[::self.LASER_RAY_STEP], dtype=np.float32)
-    obs[1] = self.downsampled_angles
+    downsampled_ranges = np.array(msg.ranges[::self.LASER_RAY_STEP], dtype=np.float32)
+    downsampled_angles = self.downsampled_angles
+    obs = (downsampled_ranges, downsampled_angles)
 
     self.apply_sensor_model(self.particles, obs, self.weights)
     self.weights /= np.sum(self.weights)
@@ -79,14 +79,40 @@ class SensorModel:
     table_width = int(max_range_px) + 1
     sensor_model_table = np.zeros((table_width,table_width))
 
-
-    # TODO: All four models here; calculate interpolated E[z_t | x_t]
-    # Tam - Calculate z_t^k* using x_t (from downsampled angles???)
-
     # Populate sensor model table as specified
     # Note that the row corresponds to the observed measurement and the column corresponds to the expected measurement
     # Tim: Each column is the expected measurement, row corresponds to observed measurement
     # YOUR CODE HERE
+
+    # sensor_model_table[z_obs][z_exp] -> p(z | x)
+    # Get z_exp using range_libc on a pose, z_obs?????
+
+    # Populate the matrix
+    def interpolated_pdf(observed, expected):
+        # Sample from normal pdf
+        p_hit = norm(observed, expected, SIGMA_HIT)
+
+        p_short = 0
+        # Short is nonzero if observed is within 0 and expected
+        if 0 <= observed and observed <= expected:
+            p_short = lambda_short * np.exp(-lambda_short * observed)
+
+        p_rand = 0
+        # Rand is nonzero if observed is within 0 and z_max
+        if 0 <= observed and observed <= max_range_px:
+            p_rand = 1.0 / max_range_px
+                    
+        # p_max is 1 only if observed = z_max, 0 otherwise
+        p_max = 1 if observed == max_range_px else 0
+
+        return Z_HIT * p_hit + Z_SHORT * p_short + Z_RAND * p_rand + Z_MAX * p_max
+
+
+    # Calculate each entry for the table and normalize by columns.
+    sensor_model_table = np.fromfunction(interpolated_pdf, (table_width, table_width), dtype=np.float32)
+    column_sums = sensor_model_table.sum(axis=0)
+    sensor_model_table /= column_sums
+
     return sensor_model_table
 
   def apply_sensor_model(self, proposal_dist, obs, weights):
