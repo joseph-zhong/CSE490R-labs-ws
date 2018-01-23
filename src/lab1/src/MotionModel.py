@@ -134,7 +134,6 @@ class KinematicMotionModel:
     # Update the proposal distribution by applying the control to each particle
     # YOUR CODE HERE
 
-    # todo: review convert dt to value?
     v, delta, dt = control
     dt = dt.to_sec()
 
@@ -152,6 +151,4 @@ class KinematicMotionModel:
     self.particles[:, 1] += delta_y
     self.particles[:, 2] += delta_theta
     self.particles[:, 2] %= (2 * np.pi)
-    #pprint(self.particles)
-
-    # pprint(self.particles)
+    pprint(self.particles)
