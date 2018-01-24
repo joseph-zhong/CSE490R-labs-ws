@@ -13,6 +13,7 @@ INV_SQUASH_FACTOR = 2.2    # Factor for helping the weight distribution to be le
 Z_SHORT = 1  # Weight for short reading
 Z_MAX = 1    # Weight for max reading
 Z_RAND = 1   # Weight for random reading
+LAMBDA_SHORT = 1 # Parameter for short distribution
 SIGMA_HIT = 1# Noise value for hit reading
 Z_HIT = 1    # Weight for hit reading
 
@@ -95,7 +96,7 @@ class SensorModel:
         p_short = 0
         # Short is nonzero if observed is within 0 and expected
         if 0 <= observed and observed <= expected:
-            p_short = lambda_short * np.exp(-lambda_short * observed)
+            p_short = LAMBDA_SHORT * np.exp(-LAMBDA_SHORT * observed)
 
         p_rand = 0
         # Rand is nonzero if observed is within 0 and z_max
