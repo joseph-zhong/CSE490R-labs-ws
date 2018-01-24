@@ -20,6 +20,10 @@ KINEMATIC_NOISE_MEAN = 0.0
 KINEMATIC_NOISE_STD = 1e-1
 
 
+KINEMATIC_NOISE_MEAN = 0.0
+KINEMATIC_NOISE_STD = 1e-1
+
+
 # Car globals.
 CAR_LEN = 0.33
 
@@ -107,7 +111,7 @@ class KinematicMotionModel:
     :param msg:
     :return:
     """
-    print "motion_cb"
+    #print "motion_cb"
     self.state_lock.acquire()
 
     if self.last_servo_cmd is None:
@@ -130,7 +134,7 @@ class KinematicMotionModel:
     self.state_lock.release()
     
   def apply_motion_model(self, proposal_dist, control):
-    print "applying motion model"
+    #print "applying motion model"
     # Update the proposal distribution by applying the control to each particle
     # YOUR CODE HERE
 
@@ -152,6 +156,6 @@ class KinematicMotionModel:
     self.particles[:, 1] += delta_y
     self.particles[:, 2] += delta_theta
     self.particles[:, 2] %= (2 * np.pi)
-    pprint(self.particles)
+    #pprint(self.particles)
 
     # pprint(self.particles)
