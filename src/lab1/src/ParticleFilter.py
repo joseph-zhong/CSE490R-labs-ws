@@ -13,12 +13,14 @@ from vesc_msgs.msg import VescStateStamped
 from sensor_msgs.msg import LaserScan
 from nav_msgs.srv import GetMap
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import PoseStamped, PoseArray, PoseWithCovarianceStamped, PointStamped
+from geometry_msgs.msg import PoseStamped, PoseArray, PoseWithCovarianceStamped, PointStamped, Pose
 
 from ReSample import ReSampler
 from SensorModel import SensorModel
 from MotionModel import OdometryMotionModel, KinematicMotionModel
 
+STARTING_NOISE_MEAN = 0.0
+STARTING_NOISE_STD = 1e-3
  
 class ParticleFilter():
 
@@ -82,27 +84,42 @@ class ParticleFilter():
 
   # Initialize the particles to cover the map
   def initialize_global(self, map_msg):
+
     # YOUR CODE HERE
     pass
     
   # Publish a tf between the laser and the map
   # This is necessary in order to visualize the laser scan within the map
-  def publish_tf(self,pose):
+  def publish_tf(self, pose):
   # Use self.pub_tf
   # YOUR CODE HERE
-    pass
+    x, y, theta = pose
+    translation = (x, y, 0)
+    rotation = tf.transformations.quaternion_from_euler(0, 0, theta)
+
+    self.pub_tf.sendTransform(translation, rotation, rospy.Time.now(), "laser", "map")
 
   # Returns the expected pose given the current particles and weights
   def expected_pose(self):
-  # YOUR CODE HERE
-    pass
+    return np.average(self.motion_model.particles, weights=self.weights, axis=0)
+    # TODO: Tim: Get rid of the weights
     
   # Callback for '/initialpose' topic. RVIZ publishes a message to this topic when you specify an initial pose using its GUI
   # Reinitialize your particles and weights according to the received initial pose
   # Remember to apply a reasonable amount of Gaussian noise to each particle's pose
   def clicked_pose_cb(self, msg):
     self.state_lock.acquire()
-    self.motion_model.last_pose = msg.pose
+    print("Clicked pose message")
+    pprint(msg)
+    start_x = msg.pose.pose.position.x
+    start_y = msg.pose.pose.position.y
+    start_theta = Utils.quaternion_to_angle(msg.pose.pose.orientation)
+    starting_particles = np.random.normal(loc=STARTING_NOISE_MEAN, scale=STARTING_NOISE_STD, size=self.particles.shape)
+    starting_particles[:, 0] += start_x
+    starting_particles[:, 1] += start_y
+    starting_particles[:, 2] += start_theta
+    self.motion_model.particles = starting_particles
+    pprint(self.motion_model.particles)
     # YOUR CODE HERE
     
     self.state_lock.release()
@@ -115,12 +132,63 @@ class ParticleFilter():
   #     Sample so that particles with higher weights are more likely to be sampled.
   def visualize(self):
     self.state_lock.acquire()
-    
+
+    #self.publish_tf() # publishes the tf between the map and laser
+
+    # You first get the expected pose of the car, using the right function
+    # You then publish the transform from this pose to base_link, so that you know where the put the laser
+    # You then put a PoseStamped where you think the car is
+    # You then sample some of particles and display them as well
+
+    expected_pose = self.expected_pose()  # Gets the expected pose of the robot
+    self.publish_tf(expected_pose)        # Publishes a tf between map and laser, which is at expected pose
+    #pprint(expected_pose)
+
+
+    # Publishes a PoseStamped message indicating the expected pose of the car
+    pose_stamped = PoseStamped()
+    pose_stamped.header.frame_id = "map"
+    pose_stamped.header.stamp = rospy.Time()
+
+    pose_stamped.pose.position.x = expected_pose[0]
+    pose_stamped.pose.position.y = expected_pose[1]
+
+    quat = Utils.angle_to_quaternion(expected_pose[2])
+    pose_stamped.pose.orientation.x = quat[0]
+    pose_stamped.pose.orientation.y = quat[1]
+    pose_stamped.pose.orientation.z = quat[2]
+    pose_stamped.pose.orientation.w = quat[3]
+    self.pose_pub.publish(pose_stamped)
+
+    # Publishes a subsample of the particles in a PoseArray
+    pa = PoseArray()
+    pa.header.stamp = rospy.Time()
+    pa.header.frame_id = "map"
+
+    particles_to_viz = self.motion_model.particles[np.random.choice(self.motion_model.particles.shape[0],
+                                                                    self.MAX_VIZ_PARTICLES, replace=False), :]
+    #pprint(particles_to_viz)
+    poses_array = []
+    for i in range(0, len(particles_to_viz)):
+      pose = Pose()
+      pose.position.x = particles_to_viz[i, 0]
+      pose.position.y = particles_to_viz[i, 1]
+      quat = Utils.angle_to_quaternion(particles_to_viz[i, 2])
+      pose.orientation.x = quat[0]
+      pose.orientation.y = quat[1]
+      pose.orientation.z = quat[2]
+      pose.orientation.w = quat[3]
+      poses_array.append(pose)
+
+    pa.poses = poses_array
+    #pprint(pa)
+    self.particle_pub.publish(pa)
+
     # YOUR CODE HERE
-    
+
     self.state_lock.release()
-  
-# Suggested main 
+
+# Suggested main
 if __name__ == '__main__':
   rospy.init_node("particle_filter", anonymous=True) # Initialize the node
   pf = ParticleFilter() # Create the particle filter

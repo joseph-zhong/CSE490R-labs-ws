@@ -73,7 +73,6 @@ class SensorModel:
 
     # Populate sensor model table as specified
     # Note that the row corresponds to the observed measurement and the column corresponds to the expected measurement
-    # Tim: Each column is the expected measurement, row corresponds to observed measurement
     # YOUR CODE HERE
     return sensor_model_table
 

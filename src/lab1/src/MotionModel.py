@@ -16,6 +16,10 @@ from nav_msgs.msg import Odometry
 ODOM_NOISE_MEAN = 0.0
 ODOM_NOISE_STD = 1e-3
 
+KINEMATIC_NOISE_MEAN = 0.0
+KINEMATIC_NOISE_STD = 1e-1
+
+
 # Car globals.
 CAR_LEN = 0.33
 
@@ -45,7 +49,7 @@ class OdometryMotionModel:
 
       delta_x, delta_y = rotation_matrix(theta).T.dot(np.array([x_prime, y_prime]))
       control = np.array([delta_x, delta_y, theta_prime])
-
+      pprint(control)
       # Testing cleaner implementation of rotation
       # pprint(control)
       # pprint(test_control)
@@ -77,7 +81,7 @@ class OdometryMotionModel:
     self.particles[:, 1] += -np.sin(self.particles[:, 2]) * noisy_control[:, 0] + np.cos(self.particles[:, 2]) * noisy_control[:, 1]
     self.particles[:, 2] += noisy_control[:, 2]
     self.particles[:, 2] %= (2 * np.pi)
-    pprint(self.particles)
+    #pprint(self.particles)
     
 class KinematicMotionModel:
 
@@ -109,7 +113,7 @@ class KinematicMotionModel:
     :param msg:
     :return:
     """
-    print "motion_cb"
+    #print "motion_cb"
     self.state_lock.acquire()
 
     if self.last_servo_cmd is None:
@@ -132,7 +136,7 @@ class KinematicMotionModel:
     self.state_lock.release()
     
   def apply_motion_model(self, proposal_dist, control):
-    print "applying motion model"
+    #print "applying motion model"
     # Update the proposal distribution by applying the control to each particle
     # YOUR CODE HERE
 
@@ -140,7 +144,7 @@ class KinematicMotionModel:
     v, delta, dt = control
     dt = dt.to_sec()
 
-    noise = np.random.normal(loc=ODOM_NOISE_MEAN, scale=ODOM_NOISE_STD, size=(len(self.particles), 2))
+    noise = np.random.normal(loc=KINEMATIC_NOISE_MEAN, scale=KINEMATIC_NOISE_STD, size=(len(self.particles), 2))
     noisy_v = v + noise[:, 0]
     noisy_delta = delta + noise[:, 1]
 
@@ -154,6 +158,6 @@ class KinematicMotionModel:
     self.particles[:, 1] += delta_y
     self.particles[:, 2] += delta_theta
     self.particles[:, 2] %= (2 * np.pi)
-    pprint(self.particles)
+    #pprint(self.particles)
 
     # pprint(self.particles)
