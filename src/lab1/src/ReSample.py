@@ -1,6 +1,7 @@
 import rospy
 import random
 import numpy as np
+from threading import Lock
 
 class ReSampler:
   def __init__(self, particles, weights, state_lock=None):
@@ -18,7 +19,9 @@ class ReSampler:
     self.state_lock.acquire()
     # Use np.random.choice to re-sample 
     # YOUR CODE HERE
-    self.particles = np.random.choice(self.particles, size=len(self.particles), p=self.weights)
+    # Set the new particles via the indices.
+    indices = np.random.choice(len(self.particles), size=len(self.particles), p=self.weights)
+    np.take(self.particles, indices,  axis=0, out=self.particles)
 
     self.state_lock.release()
   
@@ -66,7 +69,7 @@ class ReSampler:
         j += 1
 
     # Set the new particles via the indices.
-    np.take(self.particles, indices, out=self.particles)
+    np.take(self.particles, indices, axis=0, out=self.particles)
 
     self.state_lock.release()
 
