@@ -14,7 +14,7 @@ from nav_msgs.msg import Odometry
 
 # Motion Model Hyperparameters.
 ODOM_NOISE_MEAN = 0.0
-ODOM_NOISE_STD = 1e-3
+ODOM_NOISE_STD = 1e-5
 
 KINEMATIC_NOISE_MEAN = 0.0
 KINEMATIC_NOISE_STD = 1e-1
@@ -40,20 +40,16 @@ class OdometryMotionModel:
     def rotation_matrix(theta):
         cos_theta = np.cos(theta)
         sin_theta = np.sin(theta)
-        return np.array([[cos_theta, -sin_theta], [sin_theta, cos_theta]])
+        return np.array([[cos_theta, sin_theta], [-sin_theta, cos_theta]])
 
     if isinstance(self.last_pose, np.ndarray):
       old_control = pose - self.last_pose
+
       x_prime, y_prime, theta_prime = old_control
       theta = self.last_pose[2]
+      delta_x, delta_y = rotation_matrix(theta).dot(np.array([x_prime, y_prime]))
 
-      delta_x, delta_y = rotation_matrix(theta).T.dot(np.array([x_prime, y_prime]))
       control = np.array([delta_x, delta_y, theta_prime])
-      pprint(control)
-      # Testing cleaner implementation of rotation
-      # pprint(control)
-      # pprint(test_control)
-      # assert np.all(control == test_control)
 
       # Compute the control from the msg and last_pose
       # YOUR CODE HERE
@@ -69,16 +65,14 @@ class OdometryMotionModel:
     # Tim: Add noise here
     # YOUR CODE HERE
 
-    # TODO josephz: This needs the decoupling trick thingy
-    # rot = np.array([[np.cos(self.particles[:][2]), np.sin(self.particles[:][2])],
-    #            -np.sin(self.particles[:][2]), np.cos(self.particles[:][2])])
-    # np.matmul(rot, self.particles[:, :2])
-
     noisy_control = control + np.random.normal(loc=ODOM_NOISE_MEAN, scale=ODOM_NOISE_STD, size=self.particles.shape)
+    delta_x = np.cos(self.particles[:, 2]) * noisy_control[:, 0] + -np.sin(self.particles[:, 2]) * noisy_control[:, 1]
+    delta_y = np.sin(self.particles[:, 2]) * noisy_control[:, 0] + np.cos(self.particles[:, 2]) * noisy_control[:, 1]
+    # pprint("Delta_y")
+    # pprint(delta_y)
 
-    # TODO josephz: This can be faster as well... by doing a vector add.
-    self.particles[:, 0] += np.cos(self.particles[:, 2]) * noisy_control[:, 0] + np.sin(self.particles[:, 2]) * noisy_control[:, 1]
-    self.particles[:, 1] += -np.sin(self.particles[:, 2]) * noisy_control[:, 0] + np.cos(self.particles[:, 2]) * noisy_control[:, 1]
+    self.particles[:, 0] += delta_x
+    self.particles[:, 1] += delta_y
     self.particles[:, 2] += noisy_control[:, 2]
     self.particles[:, 2] %= (2 * np.pi)
     #pprint(self.particles)
