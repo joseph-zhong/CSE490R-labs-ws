@@ -77,19 +77,16 @@ class ParticleFilter():
 
   # Initialize the particles to cover the map
   def initialize_global(self, map_msg):
-
+    # Tim: Haltan sequence
     # YOUR CODE HERE
     pass
     
   # Publish a tf between the laser and the map
   # This is necessary in order to visualize the laser scan within the map
   def publish_tf(self, pose):
-  # Use self.pub_tf
-  # YOUR CODE HERE
     x, y, theta = pose
     translation = (x, y, 0)
     rotation = tf.transformations.quaternion_from_euler(0, 0, theta)
-
     self.pub_tf.sendTransform(translation, rotation, rospy.Time.now(), "laser", "map")
 
   # Returns the expected pose given the current particles and weights

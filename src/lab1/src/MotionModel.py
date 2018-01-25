@@ -14,7 +14,7 @@ from nav_msgs.msg import Odometry
 
 # Motion Model Hyperparameters.
 ODOM_NOISE_MEAN = 0.0
-ODOM_NOISE_STD = 1e-5
+ODOM_NOISE_STD = 1e-2
 
 KINEMATIC_NOISE_MEAN = 0.0
 KINEMATIC_NOISE_STD = 1e-1
