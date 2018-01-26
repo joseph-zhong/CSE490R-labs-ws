@@ -107,7 +107,7 @@ class KinematicMotionModel:
     :param msg:
     :return:
     """
-    #print "motion_cb"
+    print "motion_cb"
     self.state_lock.acquire()
 
     if self.last_servo_cmd is None:
@@ -130,14 +130,15 @@ class KinematicMotionModel:
     self.state_lock.release()
     
   def apply_motion_model(self, proposal_dist, control):
-    #print "applying motion model"
+    print "applying motion model"
     # Update the proposal distribution by applying the control to each particle
     # YOUR CODE HERE
 
+    # todo: review convert dt to value?
     v, delta, dt = control
     dt = dt.to_sec()
 
-    noise = np.random.normal(loc=KINEMATIC_NOISE_MEAN, scale=KINEMATIC_NOISE_STD, size=(len(self.particles), 2))
+    noise = np.random.normal(loc=ODOM_NOISE_MEAN, scale=ODOM_NOISE_STD, size=(len(self.particles), 2))
     noisy_v = v + noise[:, 0]
     noisy_delta = delta + noise[:, 1]
 
@@ -152,3 +153,5 @@ class KinematicMotionModel:
     self.particles[:, 2] += delta_theta
     self.particles[:, 2] %= (2 * np.pi)
     pprint(self.particles)
+
+    # pprint(self.particles)
