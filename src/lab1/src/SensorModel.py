@@ -95,20 +95,19 @@ class SensorModel:
     # Populate the matrix
     def interpolated_pdf(observed, expected):
         # Sample from normal pdf
-        p_hit = norm(observed, expected, SIGMA_HIT)
+        p_hit = norm.pdf(observed, expected, SIGMA_HIT)
 
-        p_short = 0
+        condition = observed <= expected
+        p_short = condition * LAMBDA_SHORT * np.exp(-LAMBDA_SHORT * observed)
+
         # Short is nonzero if observed is within 0 and expected
-        if 0 <= observed and observed <= expected:
-            p_short = LAMBDA_SHORT * np.exp(-LAMBDA_SHORT * observed)
+        # if observed <= expected:
+        #     p_short = LAMBDA_SHORT * np.exp(-LAMBDA_SHORT * observed)
 
-        p_rand = 0
-        # Rand is nonzero if observed is within 0 and z_max
-        if 0 <= observed and observed <= max_range_px:
-            p_rand = 1.0 / max_range_px
+        p_rand = 1.0 / max_range_px
                     
         # p_max is 1 only if observed = z_max, 0 otherwise
-        p_max = 1 if observed == max_range_px else 0
+        p_max = observed == max_range_px
 
         return Z_HIT * p_hit + Z_SHORT * p_short + Z_RAND * p_rand + Z_MAX * p_max
 
