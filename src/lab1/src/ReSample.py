@@ -27,7 +27,7 @@ class ReSampler:
     e_time = time.time()
     np.take(self.particles, indices,  axis=0, out=self.particles)
 
-    var = np.var(self.particles, axis=0)
+    var = tuple(np.var(self.particles, axis=0))
     compute_time = e_time - s_time
     print "naiive re-sampler variance: '{}' computed in '{}' seconds".format(var, compute_time)
     # with open('resample_naiive_variance.csv', 'a') as fin:
@@ -82,10 +82,11 @@ class ReSampler:
     # Set the new particles via the indices.
     np.take(self.particles, indices, axis=0, out=self.particles)
 
-    var = np.var(self.particles, axis=0)
+    var = tuple(np.var(self.particles, axis=0))
     compute_time = e_time - s_time
     print "low-var re-sampler variance: '{}', computed in '{}' seconds".format(var, compute_time)
-    with open('resample_naiive_variance.csv', 'a') as fin:
-      fin.write('{};{}'.format(var, compute_time))
+    with open('resample_low_var_variance.csv', 'a') as fin:
+      # fin.write('{};{}'.format(var, compute_time))
+      fin.write('{}'.format(compute_time))
 
     self.state_lock.release()
