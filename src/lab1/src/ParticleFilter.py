@@ -20,7 +20,7 @@ from SensorModel import SensorModel
 from MotionModel import OdometryMotionModel, KinematicMotionModel
 
 STARTING_NOISE_MEAN = 0.0
-STARTING_NOISE_STD = 1e-3
+STARTING_NOISE_STD = 1e-2
  
 class ParticleFilter():
 
@@ -100,7 +100,7 @@ class ParticleFilter():
   def clicked_pose_cb(self, msg):
     self.state_lock.acquire()
     print("Clicked pose message")
-    pprint(msg)
+    #pprint(msg)
     start_x = msg.pose.pose.position.x
     start_y = msg.pose.pose.position.y
     start_theta = Utils.quaternion_to_angle(msg.pose.pose.orientation)
@@ -108,7 +108,9 @@ class ParticleFilter():
     starting_particles[:, 0] += start_x
     starting_particles[:, 1] += start_y
     starting_particles[:, 2] += start_theta
-    self.motion_model.particles = starting_particles
+    np.divide(self.sensor_model.weights, np.sum(self.sensor_model.weights), out=self.sensor_model.weights)
+    self.motion_model.particles.fill(0)
+    self.motion_model.particles += starting_particles
     pprint(self.motion_model.particles)
     # YOUR CODE HERE
     
@@ -122,7 +124,7 @@ class ParticleFilter():
   #     Sample so that particles with higher weights are more likely to be sampled.
   def visualize(self):
     self.state_lock.acquire()
-
+    assert self.weights.all() == self.sensor_model.weights.all()
     #self.publish_tf() # publishes the tf between the map and laser
 
     # You first get the expected pose of the car, using the right function
@@ -134,6 +136,11 @@ class ParticleFilter():
     self.publish_tf(expected_pose)        # Publishes a tf between map and laser, which is at expected pose
     #pprint(expected_pose)
 
+    #Publishes the most recent laser measurement.
+    #pprint(self.sensor_model.last_laser)
+    self.sensor_model.last_laser.header.stamp = rospy.Time()
+    #pprint(self.sensor_model.last_laser)
+    self.pub_laser.publish(self.sensor_model.last_laser)
 
     # Publishes a PoseStamped message indicating the expected pose of the car
     pose_stamped = PoseStamped()
@@ -185,8 +192,8 @@ if __name__ == '__main__':
   
   while not rospy.is_shutdown(): # Keep going until we kill it
     # Callbacks are running in separate threads
-    #if pf.sensor_model.do_resample: # Check if the sensor model says it's time to resample
-    #  pf.sensor_model.do_resample = False # Reset so that we don't keep resampling
+    if pf.sensor_model.do_resample: # Check if the sensor model says it's time to resample
+      pf.sensor_model.do_resample = False # Reset so that we don't keep resampling
 
       # Resample
       if pf.RESAMPLE_TYPE == "naiive":
@@ -194,9 +201,9 @@ if __name__ == '__main__':
       elif pf.RESAMPLE_TYPE == "low_variance":
         pf.resampler.resample_low_variance()
       else:
-        print "Unrecognized resampling method: "+ pf.RESAMPLE_TYPE      
-      
-      pf.visualize()  # Perform visualization
+        print "Unrecognized resampling method: "+ pf.RESAMPLE_TYPE
+
+    pf.visualize()  # Perform visualization
 
 
 

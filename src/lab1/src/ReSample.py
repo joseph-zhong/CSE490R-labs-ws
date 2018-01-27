@@ -18,6 +18,7 @@ class ReSampler:
   
   def resample_naiive(self):
     self.state_lock.acquire()
+    #print "resampling"
     # Use np.random.choice to re-sample 
     # YOUR CODE HERE
     # Set the new particles via the indices.
@@ -29,8 +30,8 @@ class ReSampler:
     var = np.var(self.particles, axis=0)
     compute_time = e_time - s_time
     print "naiive re-sampler variance: '{}' computed in '{}' seconds".format(var, compute_time)
-    with open('resample_naiive_variance.csv', 'a') as fin:
-      fin.write('{};{}'.format(var, compute_time))
+    # with open('resample_naiive_variance.csv', 'a') as fin:
+    #   fin.write('{};{}'.format(var, compute_time))
 
     self.state_lock.release()
   

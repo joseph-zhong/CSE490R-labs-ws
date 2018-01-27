@@ -14,10 +14,10 @@ from nav_msgs.msg import Odometry
 
 # Motion Model Hyperparameters.
 ODOM_NOISE_MEAN = 0.0
-ODOM_NOISE_STD = 1e-2
+ODOM_NOISE_STD = 2e-2
 
 KINEMATIC_NOISE_MEAN = 0.0
-KINEMATIC_NOISE_STD = 1e-1
+KINEMATIC_NOISE_STD = 1e-3
 
 
 # Car globals.
@@ -111,6 +111,7 @@ class KinematicMotionModel:
     self.state_lock.acquire()
 
     if self.last_servo_cmd is None:
+      self.state_lock.release()
       return
     if self.last_vesc_stamp is None:
       self.last_vesc_stamp = msg.header.stamp

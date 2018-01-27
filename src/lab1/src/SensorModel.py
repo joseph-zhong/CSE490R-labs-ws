@@ -6,19 +6,20 @@ import range_libc
 from scipy.stats import norm
 import time
 from threading import Lock
+from sensor_msgs.msg import LaserScan
+
 
 THETA_DISCRETIZATION = 112 # Discretization of scanning angle
-INV_SQUASH_FACTOR = 2.2    # Factor for helping the weight distribution to be less peaked
+INV_SQUASH_FACTOR = 0.2    # Factor for helping the weight distribution to be less peaked
 
-Z_SHORT = 1  # Weight for short reading
-Z_MAX = 1    # Weight for max reading
-Z_RAND = 1   # Weight for random reading
-LAMBDA_SHORT = 1 # Parameter for short distribution
-SIGMA_HIT = 1# Noise value for hit reading
-Z_HIT = 1    # Weight for hit reading
+Z_SHORT = 0.0  # Weight for short reading
+Z_MAX = 0.1    # Weight for max reading
+Z_RAND = 0.1   # Weight for random reading
+LAMBDA_SHORT = 0.5 # Parameter for short distribution
+SIGMA_HIT = 3.0 # Noise value for hit reading
+Z_HIT = 0.8    # Weight for hit reading
 
 class SensorModel:
-	
   def __init__(self, map_msg, particles, weights, state_lock=None):
     if state_lock is None:
       self.state_lock = Lock()
@@ -27,7 +28,9 @@ class SensorModel:
   
     self.particles = particles
     self.weights = weights
-    
+
+    self.last_laser = LaserScan()
+
     self.LASER_RAY_STEP = int(rospy.get_param("~laser_ray_step")) # Step for downsampling laser scans
     self.MAX_RANGE_METERS = float(rospy.get_param("~max_range_meters")) # The max range of the laser
     
@@ -56,16 +59,24 @@ class SensorModel:
     # YOUR CODE HERE
     # Tam - Downsampled angles shouldn't change.
     if self.downsampled_angles is None:
-        print msg
-        self.downsampled_angles = np.arange(msg.angle_min, msg.angle_max, self.LASER_RAY_STEP, dtype=np.float32)
+      # print msg
+      self.downsampled_angles = np.arange(msg.angle_min, msg.angle_max, self.LASER_RAY_STEP, dtype=np.float32)
 
     downsampled_ranges = np.array(msg.ranges[::self.LASER_RAY_STEP], dtype=np.float32)
+    #print "################## DOWNSAMPLED"
+    #print len(downsampled_ranges)
+    #print self.weights
     downsampled_angles = self.downsampled_angles
     obs = (downsampled_ranges, downsampled_angles)
 
+    #print obs
+
     self.apply_sensor_model(self.particles, obs, self.weights)
-    self.weights /= np.sum(self.weights)
-    
+    np.divide(self.weights, np.sum(self.weights), out=self.weights)
+    #print 'weights'
+    #print self.weights
+    #print 'weights'
+
     self.last_laser = msg
     self.do_resample = True
     
@@ -94,33 +105,39 @@ class SensorModel:
 
     # Populate the matrix
     def interpolated_pdf(observed, expected):
-        # Sample from normal pdf
-        p_hit = norm.pdf(observed, expected, SIGMA_HIT)
+      # Sample from normal pdf
+      p_hit = norm.pdf(observed, expected, SIGMA_HIT)
+      condition = observed <= expected
+      p_short = condition * LAMBDA_SHORT * np.exp(-LAMBDA_SHORT * observed)
 
-        condition = observed <= expected
-        p_short = condition * LAMBDA_SHORT * np.exp(-LAMBDA_SHORT * observed)
+      # Uniformly distributed
+      p_rand = 1.0 / max_range_px
+      # p_max is 1 only if observed = z_max, 0 otherwise
+      p_max = observed == max_range_px
 
-        # Short is nonzero if observed is within 0 and expected
-        # if observed <= expected:
-        #     p_short = LAMBDA_SHORT * np.exp(-LAMBDA_SHORT * observed)
+      #print p_hit
+      #print p_short
+      #print p_rand
+      #print p_max
 
-        p_rand = 1.0 / max_range_px
-                    
-        # p_max is 1 only if observed = z_max, 0 otherwise
-        p_max = observed == max_range_px
-
-        return Z_HIT * p_hit + Z_SHORT * p_short + Z_RAND * p_rand + Z_MAX * p_max
+      return Z_HIT * p_hit + Z_SHORT * p_short + Z_MAX * p_max + Z_RAND * p_rand
 
 
     # Calculate each entry for the table and normalize by columns.
     sensor_model_table = np.fromfunction(interpolated_pdf, (table_width, table_width), dtype=np.float32)
     column_sums = sensor_model_table.sum(axis=0)
     sensor_model_table /= column_sums
+    print(sensor_model_table[:10])
 
     return sensor_model_table
 
   def apply_sensor_model(self, proposal_dist, obs, weights):
-        
+    print "start________________________________________________________________________"
+    #print proposal_dist
+    #print obs
+    #print weights
+    #print self.ranges
+
     obs_ranges = obs[0]
     obs_angles = obs[1]
     num_rays = obs_angles.shape[0]
@@ -138,6 +155,8 @@ class SensorModel:
     self.range_method.eval_sensor_model(obs_ranges, self.ranges, weights, num_rays, proposal_dist.shape[0])
 
     np.power(weights, INV_SQUASH_FACTOR, weights)
+    #print "################## WEIGHTS ##################"
+    assert np.may_share_memory(weights,self.weights)
 
 if __name__ == '__main__':
   pass
