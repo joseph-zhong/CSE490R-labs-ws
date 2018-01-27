@@ -118,6 +118,11 @@ class SensorModel:
     return sensor_model_table
 
   def apply_sensor_model(self, proposal_dist, obs, weights):
+    print "start________________________________________________________________________"
+    #print proposal_dist
+    #print obs
+    #print weights
+    #print self.ranges
 
     obs_ranges = obs[0]
     obs_angles = obs[1]
@@ -136,8 +141,8 @@ class SensorModel:
     self.range_method.eval_sensor_model(obs_ranges, self.ranges, weights, num_rays, proposal_dist.shape[0])
 
     np.power(weights, INV_SQUASH_FACTOR, weights)
-
-
+    #print "################## WEIGHTS ##################"
+    assert np.may_share_memory(weights,self.weights)
 
 if __name__ == '__main__':
   pass
