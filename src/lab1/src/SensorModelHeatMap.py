@@ -18,6 +18,12 @@ LAMBDA_SHORT = 0.2  # Parameter for short distribution
 SIGMA_HIT = 6  # Noise value for hit reading
 Z_HIT = 0.7    # Weight for hit reading
 
+# Z_MAX = 0.01    # Weight for max reading
+# Z_RAND = 0.025   # Weight for random reading
+# LAMBDA_SHORT = 0.2  # Parameter for short distribution
+# SIGMA_HIT = 5.0  # Noise value for hit reading
+# Z_HIT = 0.865    # Weight for hit reading
+
 class SensorModelHeatMap:
   def __init__(self, map_msg, particles, weights, state_lock=None):
     if state_lock is None:

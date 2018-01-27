@@ -9,7 +9,7 @@ from sensor_msgs.msg import LaserScan
 
 
 THETA_DISCRETIZATION = 112 # Discretization of scanning angle
-INV_SQUASH_FACTOR = 0.2    # Factor for helping the weight distribution to be less peaked
+INV_SQUASH_FACTOR = 0.2  # Factor for helping the weight distribution to be less peaked
 
 Z_SHORT = 0.1  # Weight for short reading
 Z_MAX = 0.015    # Weight for max reading
@@ -119,10 +119,6 @@ class SensorModel:
 
   def apply_sensor_model(self, proposal_dist, obs, weights):
     print "start________________________________________________________________________"
-    #print proposal_dist
-    #print obs
-    #print weights
-    #print self.ranges
 
     obs_ranges = obs[0]
     obs_angles = obs[1]
@@ -140,8 +136,7 @@ class SensorModel:
     # Evaluate the sensor model on the GPU
     self.range_method.eval_sensor_model(obs_ranges, self.ranges, weights, num_rays, proposal_dist.shape[0])
 
-    np.power(weights, INV_SQUASH_FACTOR, weights)
-    #print "################## WEIGHTS ##################"
+    np.power(weights, INV_SQUASH_FACTOR, out=weights)
     assert np.may_share_memory(weights,self.weights)
 
 if __name__ == '__main__':

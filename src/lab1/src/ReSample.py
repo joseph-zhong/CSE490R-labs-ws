@@ -41,6 +41,13 @@ class ReSampler:
     #   plt.plot(self.times)
     #   plt.show()
 
+    print "Resampling naiively"
+    fig1 = plt.figure(1)
+    fig1.suptitle('Particle Resampling Compute Time', fontsize=20)
+    plt.plot(indices)
+    plt.xlabel('Indices')
+    plt.ylabel('??')
+
     print "Naiive: [Mean variance: '{}'] [Times: '{}']".format(np.mean(self.variances, axis=0), np.mean(self.times))
     # print "naiive re-sampler variance: '{}' computed in '{}' seconds".format(var, compute_time)
     # with open('resample_naiive_variance.csv', 'aw') as fin:
@@ -103,6 +110,19 @@ class ReSampler:
     # if len(self.times) >= MAX_SAMPLES:
     #   plt.plot(self.times)
     #   plt.show()
+
+    print "Resampling with low-variance"
+    print indices[:10]
+    print self.weights[:10]
+    fig1 = plt.figure(1)
+    fig1.suptitle('Particle Resampling Compute Time', fontsize=20)
+    # plt.plot()
+    plt.scatter(indices, np.zeros_like(indices))
+    plt.xlabel('Indices')
+    plt.ylabel('??')
+    # plt.savefig('resampled_particles.jpg')
+    plt.show()
+
     print "Low-var: [Mean variance: '{}'] [Times: '{}']".format(np.mean(self.variances, axis=0), np.mean(self.times))
 
     # print "low-var re-sampler variance: '{}', computed in '{}' seconds".format(var, compute_time)

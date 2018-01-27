@@ -68,10 +68,44 @@ def main():
 
   # Reserve a copy of non-expanded space for plotting
   # Convert from map to world
-  Y = empty_spaces[0] * RESOLUTION + OFFSET_Y
-  X = empty_spaces[1] * RESOLUTION + OFFSET_X
-  expanded_spaces = [list(xy) for xy in zip(X, Y)]
-  expanded_spaces = expanded_spaces[::DOWNSAMPLE]
+  map_to_world = lambda p: [p[0] * RESOLUTION + OFFSET_X, p[1] * RESOLUTION + OFFSET_Y]
+  expanded_spaces = list(map(map_to_world, expanded_spaces))
+  expanded_spaces = expanded_spaces[::100]
+
+  # Create particles, THETA_DISCRETIZATION thetas per particle
+  print "PARTICLES"
+  particles = np.empty((0, 3), dtype=np.float32)
+  
+  # Angles will never change, pre-calculate them here.
+  angles = np.linspace(0, 2 * np.pi, THETA_DISCRETIZATION)
+  
+  # Reshape for convenience
+  angles = angles.reshape(len(angles), 1)
+
+
+  # For each [x, y], create a list of [[x, y, theta_1] ... [x, y, theta_n]]
+  progress = "\rIteration {}: Point: {}"
+  for i, position in enumerate(expanded_spaces):
+    position_copies = np.array([position] * THETA_DISCRETIZATION)
+    next_particles = np.concatenate((position_copies, angles), axis=1)
+
+    # Print progress
+    print progress.format(i, position),
+    sys.stdout.flush()
+
+    particles = np.append(particles, next_particles, axis=0)
+
+  print "FIRST CHUNK OF PARTICLES-------------"
+  print particles[0:THETA_DISCRETIZATION]
+  print
+
+  # Init. the model and process the scan
+  weights = np.ones(len(particles)) / float(len(particles))
+  sm = SensorModelHeatMap(map_msg, particles, weights)
+  sm.lidar_cb(msg)
+
+  # Partition w.r.t theta
+  calculated_weights = np.split(sm.weights, len(sm.weights) // THETA_DISCRETIZATION)
 
 
   #########################
@@ -82,6 +116,7 @@ def main():
   downsampled_ranges[isNan] = msg.range_max
   obs = (downsampled_ranges, downsampled_angles)
 
+  plot_results(empty_spaces[1][::DOWNSAMPLE], empty_spaces[0][::DOWNSAMPLE], resulting_weights, map_data)
 
   # Create particles from an expanded set of the empty space
   # THETA_DISCRETIZATION thetas per particle
