@@ -17,12 +17,15 @@ class ReSampler:
   
   def resample_naiive(self):
     self.state_lock.acquire()
+    #print "resampling"
     # Use np.random.choice to re-sample 
     # YOUR CODE HERE
     # Set the new particles via the indices.
+    #print self.weights
     indices = np.random.choice(len(self.particles), size=len(self.particles), p=self.weights)
+    #print indices
     np.take(self.particles, indices,  axis=0, out=self.particles)
-
+    #print(self.particles)
     self.state_lock.release()
   
   def resample_low_variance(self):
@@ -52,6 +55,7 @@ class ReSampler:
     # TODO josephz: Check that this version is faster.
     # Inspiration: moving indices should be slightly faster.
     # See https://github.com/rlabbe/filterpy/blob/master/filterpy/monte_carlo/resampling.py
+    print(self.weights)
     M = len(self.particles)
     r = random.random()
     positions = (r + np.arange(M)) / M
