@@ -1,3 +1,4 @@
+import time
 import rospy
 import random
 import numpy as np
@@ -20,8 +21,16 @@ class ReSampler:
     # Use np.random.choice to re-sample 
     # YOUR CODE HERE
     # Set the new particles via the indices.
+    s_time = time.time()
     indices = np.random.choice(len(self.particles), size=len(self.particles), p=self.weights)
+    e_time = time.time()
     np.take(self.particles, indices,  axis=0, out=self.particles)
+
+    var = np.var(self.particles, axis=0)
+    compute_time = e_time - s_time
+    print "naiive re-sampler variance: '{}' computed in '{}' seconds".format(var, compute_time)
+    with open('resample_naiive_variance.csv', 'a') as fin:
+      fin.write('{};{}'.format(var, compute_time))
 
     self.state_lock.release()
   
@@ -52,6 +61,7 @@ class ReSampler:
     # TODO josephz: Check that this version is faster.
     # Inspiration: moving indices should be slightly faster.
     # See https://github.com/rlabbe/filterpy/blob/master/filterpy/monte_carlo/resampling.py
+    s_time = time.time()
     M = len(self.particles)
     r = random.random()
     positions = (r + np.arange(M)) / M
@@ -67,9 +77,14 @@ class ReSampler:
         i += 1
       else:
         j += 1
-
+    e_time = time.time()
     # Set the new particles via the indices.
     np.take(self.particles, indices, axis=0, out=self.particles)
 
-    self.state_lock.release()
+    var = np.var(self.particles, axis=0)
+    compute_time = e_time - s_time
+    print "low-var re-sampler variance: '{}', computed in '{}' seconds".format(var, compute_time)
+    with open('resample_naiive_variance.csv', 'a') as fin:
+      fin.write('{};{}'.format(var, compute_time))
 
+    self.state_lock.release()

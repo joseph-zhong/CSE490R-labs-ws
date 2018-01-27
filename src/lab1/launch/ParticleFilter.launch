@@ -21,6 +21,5 @@
 		<param name="max_range_meters" value="$(arg max_range_meters)" />
         <param name="resample_type" value="$(arg resample_type)" />
 		<param name="max_viz_particles" value="50"/>
-
 	</node>
 </launch>
