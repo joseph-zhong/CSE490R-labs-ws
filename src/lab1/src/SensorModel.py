@@ -12,12 +12,12 @@ from sensor_msgs.msg import LaserScan
 THETA_DISCRETIZATION = 112 # Discretization of scanning angle
 INV_SQUASH_FACTOR = 0.2    # Factor for helping the weight distribution to be less peaked
 
-Z_SHORT = 0.0  # Weight for short reading
+Z_SHORT = 0.1  # Weight for short reading
 Z_MAX = 0.1    # Weight for max reading
 Z_RAND = 0.1   # Weight for random reading
 LAMBDA_SHORT = 0.5 # Parameter for short distribution
-SIGMA_HIT = 3.0 # Noise value for hit reading
-Z_HIT = 0.8    # Weight for hit reading
+SIGMA_HIT = 3.0  # Noise value for hit reading
+Z_HIT = 0.7    # Weight for hit reading
 
 class SensorModel:
   def __init__(self, map_msg, particles, weights, state_lock=None):
@@ -127,12 +127,12 @@ class SensorModel:
     sensor_model_table = np.fromfunction(interpolated_pdf, (table_width, table_width), dtype=np.float32)
     column_sums = sensor_model_table.sum(axis=0)
     sensor_model_table /= column_sums
-    print(sensor_model_table[:10])
+    #print(sensor_model_table[:10])
 
     return sensor_model_table
 
   def apply_sensor_model(self, proposal_dist, obs, weights):
-    print "start________________________________________________________________________"
+    #print "start________________________________________________________________________"
     #print proposal_dist
     #print obs
     #print weights

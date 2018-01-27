@@ -3,7 +3,7 @@
 import rospy
 import numpy as np
 import utils as Utils
-import math
+import matplotlib.pyplot as pp
 from std_msgs.msg import Float64
 from threading import Lock
 
@@ -14,7 +14,7 @@ from nav_msgs.msg import Odometry
 
 # Motion Model Hyperparameters.
 ODOM_NOISE_MEAN = 0.0
-ODOM_NOISE_STD = 2e-2
+ODOM_NOISE_STD = 3e-4
 
 KINEMATIC_NOISE_MEAN = 0.0
 KINEMATIC_NOISE_STD = 1e-3
@@ -44,7 +44,7 @@ class OdometryMotionModel:
 
     if isinstance(self.last_pose, np.ndarray):
       old_control = pose - self.last_pose
-
+      pprint(old_control)
       x_prime, y_prime, theta_prime = old_control
       theta = self.last_pose[2]
       delta_x, delta_y = rotation_matrix(theta).dot(np.array([x_prime, y_prime]))
@@ -64,19 +64,24 @@ class OdometryMotionModel:
     # Update the proposal distribution by applying the control to each particle
     # Tim: Add noise here
     # YOUR CODE HERE
-
+    #pprint(control)
     noisy_control = control + np.random.normal(loc=ODOM_NOISE_MEAN, scale=ODOM_NOISE_STD, size=self.particles.shape)
     delta_x = np.cos(self.particles[:, 2]) * noisy_control[:, 0] + -np.sin(self.particles[:, 2]) * noisy_control[:, 1]
     delta_y = np.sin(self.particles[:, 2]) * noisy_control[:, 0] + np.cos(self.particles[:, 2]) * noisy_control[:, 1]
     # pprint("Delta_y")
     # pprint(delta_y)
 
+    #pprint(self.particles)
     self.particles[:, 0] += delta_x
     self.particles[:, 1] += delta_y
     self.particles[:, 2] += noisy_control[:, 2]
     self.particles[:, 2] %= (2 * np.pi)
-    #pprint(self.particles)
-    
+
+    #pprint(self.particles[:, 0])
+    pp.plot(self.particles[:, 0], self.particles[:, 1], 'ro', np.array([0]), np.array([0]), 'bs')
+    pp.show()
+    assert False
+
 class KinematicMotionModel:
 
   def __init__(self, particles, state_lock=None):
@@ -139,7 +144,7 @@ class KinematicMotionModel:
     v, delta, dt = control
     dt = dt.to_sec()
 
-    noise = np.random.normal(loc=ODOM_NOISE_MEAN, scale=ODOM_NOISE_STD, size=(len(self.particles), 2))
+    noise = np.random.normal(loc=KINEMATIC_NOISE_MEAN, scale=KINEMATIC_NOISE_STD, size=(len(self.particles), 2))
     noisy_v = v + noise[:, 0]
     noisy_delta = delta + noise[:, 1]
 

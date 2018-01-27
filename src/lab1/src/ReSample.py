@@ -55,7 +55,7 @@ class ReSampler:
     # TODO josephz: Check that this version is faster.
     # Inspiration: moving indices should be slightly faster.
     # See https://github.com/rlabbe/filterpy/blob/master/filterpy/monte_carlo/resampling.py
-    print(self.weights)
+    #print(self.weights)
     M = len(self.particles)
     r = random.random()
     positions = (r + np.arange(M)) / M
