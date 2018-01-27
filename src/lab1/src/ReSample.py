@@ -1,8 +1,12 @@
 import time
 import rospy
 import random
+
 import numpy as np
+import matplotlib.pyplot as plt
 from threading import Lock
+
+MAX_SAMPLES = 100
 
 class ReSampler:
   def __init__(self, particles, weights, state_lock=None):
@@ -10,7 +14,9 @@ class ReSampler:
     self.weights = weights
     self.particle_indices = None  
     self.step_array = None
-    
+    self.times = []
+    self.variances = []
+
     if state_lock is None:
       self.state_lock = Lock()
     else:
@@ -27,11 +33,19 @@ class ReSampler:
     e_time = time.time()
     np.take(self.particles, indices,  axis=0, out=self.particles)
 
-    var = tuple(np.var(self.particles, axis=0))
+    var = np.var(self.particles, axis=0)
     compute_time = e_time - s_time
-    print "naiive re-sampler variance: '{}' computed in '{}' seconds".format(var, compute_time)
-    # with open('resample_naiive_variance.csv', 'a') as fin:
-    #   fin.write('{};{}'.format(var, compute_time))
+    self.times.append(compute_time)
+    self.variances.append(var)
+    # if len(self.times) >= MAX_SAMPLES:
+    #   plt.plot(self.times)
+    #   plt.show()
+
+    print "Naiive: [Mean variance: '{}'] [Times: '{}']".format(np.mean(self.variances, axis=0), np.mean(self.times))
+    # print "naiive re-sampler variance: '{}' computed in '{}' seconds".format(var, compute_time)
+    # with open('resample_naiive_variance.csv', 'aw') as fin:
+    #   # fin.write('{};{}'.format(var, compute_time))
+    #   fin.write('{}'.format(compute_time))
 
     self.state_lock.release()
   
@@ -82,11 +96,18 @@ class ReSampler:
     # Set the new particles via the indices.
     np.take(self.particles, indices, axis=0, out=self.particles)
 
-    var = tuple(np.var(self.particles, axis=0))
+    var = np.var(self.particles, axis=0)
     compute_time = e_time - s_time
-    print "low-var re-sampler variance: '{}', computed in '{}' seconds".format(var, compute_time)
-    with open('resample_low_var_variance.csv', 'a') as fin:
-      # fin.write('{};{}'.format(var, compute_time))
-      fin.write('{}'.format(compute_time))
+    self.times.append(compute_time)
+    self.variances.append(var)
+    # if len(self.times) >= MAX_SAMPLES:
+    #   plt.plot(self.times)
+    #   plt.show()
+    print "Low-var: [Mean variance: '{}'] [Times: '{}']".format(np.mean(self.variances, axis=0), np.mean(self.times))
+
+    # print "low-var re-sampler variance: '{}', computed in '{}' seconds".format(var, compute_time)
+    # with open('resample_low_var_variance.csv', 'aw') as fin:
+    #   # fin.write('{};{}'.format(var, compute_time))
+    #   fin.write('{}'.format(compute_time))
 
     self.state_lock.release()

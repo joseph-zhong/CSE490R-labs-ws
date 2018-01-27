@@ -132,7 +132,7 @@ class SensorModel:
     return sensor_model_table
 
   def apply_sensor_model(self, proposal_dist, obs, weights):
-    print "start________________________________________________________________________"
+    # print "start________________________________________________________________________"
     #print proposal_dist
     #print obs
     #print weights
