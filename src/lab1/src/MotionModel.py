@@ -14,11 +14,13 @@ from nav_msgs.msg import Odometry
 
 # Motion Model Hyperparameters.
 ODOM_NOISE_MEAN = 0.0
-ODOM_NOISE_STD = 3e-4
+ODOM_NOISE_STD = 1.5e-3
+ODOM_NOISE_THETA_STD = 1e-3
 
 KINEMATIC_NOISE_MEAN = 0.0
-KINEMATIC_NOISE_STD = 1e-3
-
+KINEMATIC_NOISE_POSITION_STD = 3e-2  # 3e-1 looks pretty good from RViz
+KINEMATIC_NOISE_DELTA_STD = 1e-1  # 2e-1 seems pretty good for this based on looking at it in RViz
+# for kinematic noises, position should be about 10,000 times greater than delta
 
 # Car globals.
 CAR_LEN = 0.33
@@ -28,6 +30,9 @@ class OdometryMotionModel:
   def __init__(self, particles, state_lock=None):
     self.last_pose = None # The last pose that was received
     self.particles = particles
+    self.count = 0
+    self.show_scatter_x = np.array([])
+    self.show_scatter_y = np.array([])
     if state_lock is None:
       self.state_lock = Lock()
     else:
@@ -44,7 +49,7 @@ class OdometryMotionModel:
 
     if isinstance(self.last_pose, np.ndarray):
       old_control = pose - self.last_pose
-      pprint(old_control)
+      #pprint(old_control)
       x_prime, y_prime, theta_prime = old_control
       theta = self.last_pose[2]
       delta_x, delta_y = rotation_matrix(theta).dot(np.array([x_prime, y_prime]))
@@ -65,33 +70,48 @@ class OdometryMotionModel:
     # Tim: Add noise here
     # YOUR CODE HERE
     #pprint(control)
-    noisy_control = control + np.random.normal(loc=ODOM_NOISE_MEAN, scale=ODOM_NOISE_STD, size=self.particles.shape)
+    noisy_control = control[0:2] + np.random.normal(loc=ODOM_NOISE_MEAN, scale=ODOM_NOISE_STD, size=self.particles[:, 0:2].shape)
     delta_x = np.cos(self.particles[:, 2]) * noisy_control[:, 0] + -np.sin(self.particles[:, 2]) * noisy_control[:, 1]
     delta_y = np.sin(self.particles[:, 2]) * noisy_control[:, 0] + np.cos(self.particles[:, 2]) * noisy_control[:, 1]
-    # pprint("Delta_y")
+    noisy_control_theta = control[2] + np.random.normal(loc=ODOM_NOISE_MEAN, scale=ODOM_NOISE_THETA_STD, size=self.particles[:,0].shape)
+    #pprint(noisy_control_theta)
     # pprint(delta_y)
 
     #pprint(self.particles)
     self.particles[:, 0] += delta_x
     self.particles[:, 1] += delta_y
-    self.particles[:, 2] += noisy_control[:, 2]
+    self.particles[:, 2] += noisy_control_theta
     self.particles[:, 2] %= (2 * np.pi)
 
+    if self.count < 20:
+      self.count += 1
+      print self.count
+      self.show_scatter_x = np.append(self.show_scatter_x, self.particles[:, 0])
+      self.show_scatter_y = np.append(self.show_scatter_y, self.particles[:, 1])
+    else:
+      pprint((self.show_scatter_x))
+      pprint(self.show_scatter_y.shape)
+      pp.plot(self.show_scatter_x, self.show_scatter_y, 'ro')
+      pp.show()
+
     #pprint(self.particles[:, 0])
-    pp.plot(self.particles[:, 0], self.particles[:, 1], 'ro', np.array([0]), np.array([0]), 'bs')
-    pp.show()
-    assert False
+    #pp.plot(self.particles[:, 0], self.particles[:, 1], 'ro', np.array([0]), np.array([0]), 'bs')
+    #pp.show()
+    #assert False
 
 class KinematicMotionModel:
 
   def __init__(self, particles, state_lock=None):
+    self.count = 0
+    self.show_scatter_x = np.array([])
+    self.show_scatter_y = np.array([])
     self.last_servo_cmd = None # The most recent servo command
     self.last_vesc_stamp = None # The time stamp from the previous vesc state msg
     self.particles = particles
-    self.SPEED_TO_ERPM_OFFSET = float(rospy.get_param("/vesc/speed_to_erpm_offset")) # Offset conversion param from rpm to speed
-    self.SPEED_TO_ERPM_GAIN = float(rospy.get_param("/vesc/speed_to_erpm_gain"))   # Gain conversion param from rpm to speed
-    self.STEERING_TO_SERVO_OFFSET = float(rospy.get_param("/vesc/steering_angle_to_servo_offset")) # Offset conversion param from servo position to steering angle
-    self.STEERING_TO_SERVO_GAIN = float(rospy.get_param("/vesc/steering_angle_to_servo_gain")) # Gain conversion param from servo position to steering angle
+    self.SPEED_TO_ERPM_OFFSET = 0.0 #float(rospy.get_param("/vesc/speed_to_erpm_offset")) # Offset conversion param from rpm to speed
+    self.SPEED_TO_ERPM_GAIN = 4614 #float(rospy.get_param("/vesc/speed_to_erpm_gain"))   # Gain conversion param from rpm to speed
+    self.STEERING_TO_SERVO_OFFSET = 0.5304 #float(rospy.get_param("/vesc/steering_angle_to_servo_offset")) # Offset conversion param from servo position to steering angle
+    self.STEERING_TO_SERVO_GAIN = -1.2135 #float(rospy.get_param("/vesc/steering_angle_to_servo_gain")) # Gain conversion param from servo position to steering angle
 
     if state_lock is None:
       self.state_lock = Lock()
@@ -139,14 +159,15 @@ class KinematicMotionModel:
     #print "applying motion model"
     # Update the proposal distribution by applying the control to each particle
     # YOUR CODE HERE
-
+    pprint(control)
     # todo: review convert dt to value?
     v, delta, dt = control
     dt = dt.to_sec()
 
-    noise = np.random.normal(loc=KINEMATIC_NOISE_MEAN, scale=KINEMATIC_NOISE_STD, size=(len(self.particles), 2))
-    noisy_v = v + noise[:, 0]
-    noisy_delta = delta + noise[:, 1]
+    position_noise = np.random.normal(loc=KINEMATIC_NOISE_MEAN, scale=KINEMATIC_NOISE_POSITION_STD, size=(len(self.particles), 1))
+    delta_noise = np.random.normal(loc=KINEMATIC_NOISE_MEAN, scale=KINEMATIC_NOISE_DELTA_STD, size=(len(self.particles), 1))
+    noisy_v = v + position_noise[:, 0]
+    noisy_delta = delta + delta_noise[:, 0]
 
     theta = self.particles[:, 2]
 
@@ -158,6 +179,21 @@ class KinematicMotionModel:
     self.particles[:, 1] += delta_y
     self.particles[:, 2] += delta_theta
     self.particles[:, 2] %= (2 * np.pi)
+
+
+    if self.count < 20:
+      self.count += 1
+      print self.count
+      self.show_scatter_x = np.append(self.show_scatter_x, self.particles[:, 0])
+      self.show_scatter_y = np.append(self.show_scatter_y, self.particles[:, 1])
+    else:
+      pprint((self.show_scatter_x))
+      pprint(self.show_scatter_y.shape)
+      pp.plot(self.show_scatter_x, self.show_scatter_y, 'ro')
+      pp.show()
+
+    #p.plot(self.particles[:, 0], self.particles[:, 1], 'ro', np.array([0]), np.array([0]), 'bs')
+    #pp.show()
     #pprint(self.particles)
 
     # pprint(self.particles)

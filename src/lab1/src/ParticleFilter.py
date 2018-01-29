@@ -138,14 +138,14 @@ class ParticleFilter():
 
     #Publishes the most recent laser measurement.
     #pprint(self.sensor_model.last_laser)
-    self.sensor_model.last_laser.header.stamp = rospy.Time()
-    #pprint(self.sensor_model.last_laser)
+    self.sensor_model.last_laser.header.stamp = rospy.Time.now()
+    #pprint(self.sensor_model.last_laser.header)
     self.pub_laser.publish(self.sensor_model.last_laser)
 
     # Publishes a PoseStamped message indicating the expected pose of the car
     pose_stamped = PoseStamped()
     pose_stamped.header.frame_id = "map"
-    pose_stamped.header.stamp = rospy.Time()
+    pose_stamped.header.stamp = rospy.Time.now()
 
     pose_stamped.pose.position.x = expected_pose[0]
     pose_stamped.pose.position.y = expected_pose[1]
@@ -197,9 +197,11 @@ if __name__ == '__main__':
 
       # Resample
       if pf.RESAMPLE_TYPE == "naiive":
-        pf.resampler.resample_naiive()
+        #pf.resampler.resample_naiive()
+        pass
       elif pf.RESAMPLE_TYPE == "low_variance":
-        pf.resampler.resample_low_variance()
+        #pf.resampler.resample_low_variance()
+        pass
       else:
         print "Unrecognized resampling method: "+ pf.RESAMPLE_TYPE
 

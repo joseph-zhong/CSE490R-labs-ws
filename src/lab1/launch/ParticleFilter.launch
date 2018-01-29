@@ -6,9 +6,9 @@
 	<arg name="scan_topic" default="/scan"/>
 	<arg name="odometry_topic" default="/vesc/odom"/>
 	<arg name="laser_ray_step" default="18"/>
-	<arg name="max_particles" default="1000"/>
+	<arg name="max_particles" default="500"/>
 	<!--<arg name="motion_model" default="odometry" />-->
-	<arg name="motion_model" default="odometry" />
+	<arg name="motion_model" default="kinematic" />
 	<arg name="max_range_meters" default="5.6" />
 	<arg name="resample_type" default="low_variance" />
 	
