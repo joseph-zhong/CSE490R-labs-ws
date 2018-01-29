@@ -64,6 +64,8 @@ class SensorModel:
       self.downsampled_angles = np.array(enum_angles[::self.LASER_RAY_STEP], dtype=np.float32)
 
     downsampled_ranges = np.array(msg.ranges[::self.LASER_RAY_STEP], dtype=np.float32)
+    isNan = np.isnan(downsampled_ranges)
+    downsampled_ranges[isNan] = msg.range_max
     #print "################## DOWNSAMPLED"
     #print len(downsampled_ranges)
     #print self.weights
