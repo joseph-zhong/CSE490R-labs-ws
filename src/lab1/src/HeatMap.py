@@ -13,12 +13,16 @@ from sensor_msgs.msg import LaserScan
 
 from SensorModelHeatMap import SensorModelHeatMap
 
-THETA_DISCRETIZATION = 112
+THETA_DISCRETIZATION = 15
 CONVERSION = 2 * np.pi / THETA_DISCRETIZATION
 
 RESOLUTION = 0.0
 OFFSET_X = 0.0
 OFFSET_Y = 0.0
+OFFSET_THETA = 0.0
+
+DOWNSAMPLE = 1  # Rate to downsample plot
+COUNT = 0  # Number of points plotted
 
 def main():
 
@@ -48,22 +52,23 @@ def main():
   OFFSET_Y = map_msg.info.origin.position.y
 
   # Collect number of pixels
-  map_shape =  (map_msg.info.height, map_msg.info.width)
+  map_shape = (map_msg.info.width, map_msg.info.height)
   map_data = np.array(map_msg.data).reshape(map_shape)
-  empty_spaces = np.where(map_data == 0)
 
   # For plotting
   map_data = map_data == 0
+  empty_spaces = np.where(map_data)
  
   # Create particles from an expanded set of the empty space
   # Reserve a copy of non-expanded space for plotting
-  empty_spaces = [list(xy) for xy in zip(empty_spaces[0], empty_spaces[1])]
-  expanded_spaces = np.copy(empty_spaces)
-
   # Convert from map to world
-  map_to_world = lambda p: [p[0] * RESOLUTION + OFFSET_X, p[1] * RESOLUTION + OFFSET_Y]
-  expanded_spaces = list(map(map_to_world, expanded_spaces))
-  expanded_spaces = expanded_spaces[::100]
+  Y = [y * RESOLUTION + OFFSET_Y for y in empty_spaces[0]]
+  X = [x * RESOLUTION + OFFSET_X for x in empty_spaces[1]]
+  expanded_spaces = [list(xy) for xy in zip(X, Y)]
+
+  # map_to_world = lambda p: [p[0] * RESOLUTION + OFFSET_X, p[1] * RESOLUTION + OFFSET_Y]
+  # expanded_spaces = list(map(map_to_world, expanded_spaces))
+  expanded_spaces = expanded_spaces[::DOWNSAMPLE]
 
   # Create particles, THETA_DISCRETIZATION thetas per particle
   particles = np.empty((0, 3), dtype=np.float32)
@@ -71,6 +76,10 @@ def main():
     curr_thetas = np.array([[i * CONVERSION] for x in range(len(expanded_spaces))])
     e = np.append(expanded_spaces, curr_thetas, axis=1)
     particles = np.append(particles, e, axis=0)
+
+  print "FIRST 10 PARTICLES-------------"
+  print particles[0:10]
+  print
 
   # Init. the model and process the scan
   weights = np.ones(len(particles)) / float(len(particles))
@@ -86,30 +95,41 @@ def main():
   print "# OF PARTICLES AND WEIGHTS --------------"
   print len(particles)
   print len(resulting_weights)
+  print len(empty_spaces[0])
 
-  plot_results(RESOLUTION, OFFSET_X, OFFSET_Y, empty_spaces[::100], resulting_weights, map_data)
+  plot_results(empty_spaces[0][::DOWNSAMPLE], empty_spaces[1][::DOWNSAMPLE], resulting_weights, map_data)
 
 
-def plot_results(res, off_x, off_y, spaces, weights, im):
+def plot_results(X, Y, weights, im):
   # Given the resulting weights and their coordinates, plots the heat map.
-  max_weight =  max(weights)
+  max_weight = max(weights)
+  print "MAX WEIGHT"
+  print max_weight
 
-  nested_weights = np.array([[x] for x in weights])
-  points_with_opacity = np.append(spaces, nested_weights, axis=1)
-
-  print points_with_opacity[0:15]
+  nested_weights = np.array([[1.0, 0.0, 0.0, x / max_weight] for x in weights])
+  print "MIN WEIGHT"
+  print min(weights)
 
   def plot_single_point(pt):
+    global COUNT
+
     x = pt[0]
     y = pt[1]
     w = pt[2]
 
+    print "\rIteration: {}".format(COUNT),
+    sys.stdout.flush()
+    COUNT += 1
     plt.scatter([x], [y], c=(0.0, 0.0, 1.0, w / max_weight), lw=0)
     return pt
 
   implot = plt.imshow(im, cmap="hot")
 
-  np.apply_along_axis(plot_single_point, 1, points_with_opacity)
+  ax = plt.gca()
+  ax.xaxis.tick_top()
+
+#  np.apply_along_axis(plot_single_point, 1, points_with_opacity)
+  plt.scatter(X, Y, c=nested_weights, lw=0)
 
   plt.show()
 
