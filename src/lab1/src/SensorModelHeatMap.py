@@ -13,11 +13,11 @@ THETA_DISCRETIZATION = 112 # Discretization of scanning angle
 INV_SQUASH_FACTOR = 0.2    # Factor for helping the weight distribution to be less peaked
 
 Z_SHORT = 0.1  # Weight for short reading
-Z_MAX = 0.005    # Weight for max reading
-Z_RAND = 0.005   # Weight for random reading
+Z_MAX = 0.01    # Weight for max reading
+Z_RAND = 0.025   # Weight for random reading
 LAMBDA_SHORT = 0.2  # Parameter for short distribution
-SIGMA_HIT = 4.0  # Noise value for hit reading
-Z_HIT = 0.8    # Weight for hit reading
+SIGMA_HIT = 5.0  # Noise value for hit reading
+Z_HIT = 0.865    # Weight for hit reading
 
 class SensorModelHeatMap:
   def __init__(self, map_msg, particles, weights, state_lock=None):
@@ -58,13 +58,12 @@ class SensorModelHeatMap:
     # YOUR CODE HERE
     # Tam - Downsampled angles shouldn't change.
     if self.downsampled_angles is None:
-      # print msg
-      enum_angles = np.arange(msg.angle_min, msg.angle_max, msg.angle_increment, dtype=np.float32)
-      self.downsampled_angles = np.array(enum_angles[::self.LASER_RAY_STEP], dtype=np.float32)
+      self.downsampled_angles = np.arange(msg.angle_min, msg.angle_max, msg.angle_increment * self.LASER_RAY_STEP, dtype=np.float32)
    
     downsampled_ranges = np.array(msg.ranges[::self.LASER_RAY_STEP], dtype=np.float32)
-    downsampled_angles = self.downsampled_angles
-    obs = (downsampled_ranges, downsampled_angles)
+    isNan = np.isnan(downsampled_ranges)
+    downsampled_ranges[isNan] = msg.range_max
+    obs = (downsampled_ranges, self.downsampled_angles)
 
     print "MSG RANGES________________________________"
     print len(downsampled_ranges)
@@ -78,9 +77,9 @@ class SensorModelHeatMap:
     print self.LASER_RAY_STEP
 
     self.apply_sensor_model(self.particles, obs, self.weights)
-    np.divide(self.weights, np.sum(self.weights), out=self.weights)
-    #print 'weights'
-    #print self.weights
+    self.weights /= np.sum(self.weights)
+    print 'weights'
+    print self.weights
     #print 'weights'
 
     self.last_laser = msg
@@ -105,20 +104,24 @@ class SensorModelHeatMap:
 
     # Populate the matrix
     def interpolated_pdf(observed, expected):
+
       # Sample from normal pdf
       p_hit = norm.pdf(observed, expected, SIGMA_HIT)
+
       condition = observed <= expected
       p_short = condition * LAMBDA_SHORT * np.exp(-LAMBDA_SHORT * observed)
 
       # Uniformly distributed
       p_rand = 1.0 / max_range_px
+
       # p_max is 1 only if observed = z_max, 0 otherwise
       p_max = observed == max_range_px
 
-      #print p_hit
-      #print p_short
-      #print p_rand
-      #print p_max
+      print "PROBS"
+      print p_hit
+      print p_short
+      print p_max
+      print p_rand
 
       return Z_HIT * p_hit + Z_SHORT * p_short + Z_MAX * p_max + Z_RAND * p_rand
 
@@ -147,14 +150,8 @@ class SensorModelHeatMap:
 
     self.range_method.calc_range_repeat_angles(self.queries, obs_angles, self.ranges)
 
-#    print "MADE IT"
-#    print "OBS_RANGES___________________________"
-#    print obs_ranges
-#    print "WEIGHTS___________________________"
-#    print weights
-#    print "RANGES___________________________"
-#    print self.ranges
-#    print proposal_dist.shape
+    print "PROP DIST SHAPE"
+    print proposal_dist.shape
 
     # Evaluate the sensor model on the GPU
     self.range_method.eval_sensor_model(obs_ranges, self.ranges, weights, num_rays, proposal_dist.shape[0])
