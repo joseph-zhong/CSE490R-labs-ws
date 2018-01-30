@@ -72,28 +72,31 @@ def main():
   expanded_spaces = list(map(map_to_world, expanded_spaces))
   expanded_spaces = expanded_spaces[::100]
 
-  # Create particles, THETA_DISCRETIZATION thetas per particle
-  print "PARTICLES"
-  particles = np.empty((0, 3), dtype=np.float32)
-  
+  # Create particles from an expanded set of the empty space
+  # THETA_DISCRETIZATION thetas per particle
+  particles = []
+
+ 
   # Angles will never change, pre-calculate them here.
   angles = np.linspace(0, 2 * np.pi, THETA_DISCRETIZATION)
+
   
-  # Reshape for convenience
-  angles = angles.reshape(len(angles), 1)
-
-
   # For each [x, y], create a list of [[x, y, theta_1] ... [x, y, theta_n]]
   progress = "\rIteration {}: Point: {}"
   for i, position in enumerate(expanded_spaces):
-    position_copies = np.array([position] * THETA_DISCRETIZATION)
-    next_particles = np.concatenate((position_copies, angles), axis=1)
+    for theta in angles:
+      next_particle = np.append(position, [theta], axis=0)
+      particles.append(next_particle)
 
     # Print progress
     print progress.format(i, position),
     sys.stdout.flush()
 
-    particles = np.append(particles, next_particles, axis=0)
+  print
+
+
+  # Cast so that Sensor Model can use it.
+  particles = np.array(particles, dtype=np.float32) 
 
   print "FIRST CHUNK OF PARTICLES-------------"
   print particles[0:THETA_DISCRETIZATION]
