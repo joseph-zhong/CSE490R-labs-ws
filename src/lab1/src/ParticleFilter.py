@@ -201,7 +201,7 @@ if __name__ == '__main__':
       elif pf.RESAMPLE_TYPE == "low_variance":
         pf.resampler.resample_low_variance()
       else:
-        print "Unrecognized resampling method: "+ pf.RESAMPLE_TYPE
+        print "Unrecognized resampling method: " + pf.RESAMPLE_TYPE
 
     pf.visualize()  # Perform visualization
 

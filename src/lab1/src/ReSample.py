@@ -1,7 +1,12 @@
+import time
 import rospy
 import random
+
 import numpy as np
+import matplotlib.pyplot as plt
 from threading import Lock
+
+MAX_SAMPLES = 100
 
 class ReSampler:
   def __init__(self, particles, weights, state_lock=None):
@@ -9,7 +14,9 @@ class ReSampler:
     self.weights = weights
     self.particle_indices = None  
     self.step_array = None
-    
+    self.times = []
+    self.variances = []
+
     if state_lock is None:
       self.state_lock = Lock()
     else:
@@ -21,11 +28,25 @@ class ReSampler:
     # Use np.random.choice to re-sample 
     # YOUR CODE HERE
     # Set the new particles via the indices.
-    #print self.weights
+    s_time = time.time()
     indices = np.random.choice(len(self.particles), size=len(self.particles), p=self.weights)
-    #print indices
+    e_time = time.time()
     np.take(self.particles, indices,  axis=0, out=self.particles)
-    #print(self.particles)
+
+    var = np.var(self.particles, axis=0)
+    compute_time = e_time - s_time
+    self.times.append(compute_time)
+    self.variances.append(var)
+    # if len(self.times) >= MAX_SAMPLES:
+    #   plt.plot(self.times)
+    #   plt.show()
+
+    print "Naiive: [Mean variance: '{}'] [Times: '{}']".format(np.mean(self.variances, axis=0), np.mean(self.times))
+    # print "naiive re-sampler variance: '{}' computed in '{}' seconds".format(var, compute_time)
+    # with open('resample_naiive_variance.csv', 'aw') as fin:
+    #   # fin.write('{};{}'.format(var, compute_time))
+    #   fin.write('{}'.format(compute_time))
+
     self.state_lock.release()
   
   def resample_low_variance(self):
@@ -55,7 +76,7 @@ class ReSampler:
     # TODO josephz: Check that this version is faster.
     # Inspiration: moving indices should be slightly faster.
     # See https://github.com/rlabbe/filterpy/blob/master/filterpy/monte_carlo/resampling.py
-    print(self.weights)
+    s_time = time.time()
     M = len(self.particles)
     r = random.random()
     positions = (r + np.arange(M)) / M
@@ -71,9 +92,22 @@ class ReSampler:
         i += 1
       else:
         j += 1
-
+    e_time = time.time()
     # Set the new particles via the indices.
     np.take(self.particles, indices, axis=0, out=self.particles)
 
-    self.state_lock.release()
+    var = np.var(self.particles, axis=0)
+    compute_time = e_time - s_time
+    self.times.append(compute_time)
+    self.variances.append(var)
+    # if len(self.times) >= MAX_SAMPLES:
+    #   plt.plot(self.times)
+    #   plt.show()
+    print "Low-var: [Mean variance: '{}'] [Times: '{}']".format(np.mean(self.variances, axis=0), np.mean(self.times))
 
+    # print "low-var re-sampler variance: '{}', computed in '{}' seconds".format(var, compute_time)
+    # with open('resample_low_var_variance.csv', 'aw') as fin:
+    #   # fin.write('{};{}'.format(var, compute_time))
+    #   fin.write('{}'.format(compute_time))
+
+    self.state_lock.release()
