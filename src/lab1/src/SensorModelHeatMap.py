@@ -16,7 +16,7 @@ Z_SHORT = 0.1  # Weight for short reading
 Z_MAX = 0.015    # Weight for max reading
 Z_RAND = 0.02   # Weight for random reading
 LAMBDA_SHORT = 0.2  # Parameter for short distribution
-SIGMA_HIT = 6.0  # Noise value for hit reading
+SIGMA_HIT = 5.0  # Noise value for hit reading
 Z_HIT = 0.865    # Weight for hit reading
 
 class SensorModelHeatMap:
@@ -91,7 +91,9 @@ class SensorModelHeatMap:
     def interpolated_pdf(observed, expected):
 
       # Sample from normal pdf
-      p_hit = norm.pdf(observed, expected, SIGMA_HIT)
+#      p_hit = norm.pdf(observed, expected, SIGMA_HIT)
+      sigma_squared = SIGMA_HIT ** 2
+      p_hit = (1 / np.sqrt(2 * np.pi * sigma_squared)) * np.exp(-(np.power(observed - expected, 2) / (2 * sigma_squared)))
 
       condition = observed <= expected
       p_short = condition * LAMBDA_SHORT * np.exp(-LAMBDA_SHORT * observed)
@@ -109,6 +111,10 @@ class SensorModelHeatMap:
     sensor_model_table = np.fromfunction(interpolated_pdf, (table_width, table_width), dtype=np.float32)
     column_sums = sensor_model_table.sum(axis=0)
     sensor_model_table /= column_sums
+
+    print "SENSOR"
+    print sensor_model_table[0:10]
+
 
     return sensor_model_table
 

@@ -22,7 +22,7 @@ OFFSET_X = 0.0
 OFFSET_Y = 0.0
 OFFSET_THETA = 0.0
 
-DOWNSAMPLE = 1  # Rate to downsample plot for debugging
+DOWNSAMPLE = 1000  # Rate to downsample plot for debugging
 COUNT = 0  # Number of points plotted
 
 def main():
@@ -142,7 +142,7 @@ def plot_results(X, Y, weights, im):
   print im.shape
 
   # Plot map
-  implot = plt.imshow(im[:,:,0], cmap="cool")
+  implot = plt.imshow(im[:,:,0], cmap="spring")
 
   # Replace 0s with NaN for plotting
   particle_plot = im[:,:,1]
