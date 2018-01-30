@@ -135,7 +135,7 @@ class SensorModelHeatMap:
     return sensor_model_table
 
   def apply_sensor_model(self, proposal_dist, obs, weights):
-    print "start________________________________________________________________________"
+#    print "start________________________________________________________________________"
 
     obs_ranges = obs[0]
     obs_angles = obs[1]
@@ -150,8 +150,8 @@ class SensorModelHeatMap:
 
     self.range_method.calc_range_repeat_angles(self.queries, obs_angles, self.ranges)
 
-    print "PROP DIST SHAPE"
-    print proposal_dist.shape
+#    print "PROP DIST SHAPE"
+#    print proposal_dist.shape
 
     # Evaluate the sensor model on the GPU
     self.range_method.eval_sensor_model(obs_ranges, self.ranges, weights, num_rays, proposal_dist.shape[0])

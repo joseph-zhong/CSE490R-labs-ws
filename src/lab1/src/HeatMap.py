@@ -14,7 +14,7 @@ from sensor_msgs.msg import LaserScan
 
 from SensorModelHeatMap import SensorModelHeatMap
 
-THETA_DISCRETIZATION = 15
+THETA_DISCRETIZATION = 112
 CONVERSION = 2 * np.pi / THETA_DISCRETIZATION
 
 RESOLUTION = 0.0
@@ -52,15 +52,17 @@ def main():
   OFFSET_Y = map_msg.info.origin.position.y
 
 
-  # Collect number of pixels
+  # Create two channel image containing map values and
+  # likelihoods
   map_shape = (map_msg.info.width, map_msg.info.height)
-  map_data = np.array(map_msg.data).reshape(map_shape)
-
 
   # For plotting
+  map_data = np.array(map_msg.data).reshape(map_shape)
   map_data = map_data == 0
   empty_spaces = np.where(map_data)
-
+  image_plot = np.stack((np.zeros(map_shape),) * 3)
+  image_plot[0] = map_data
+#  image_plot[2] = 1
 
   # Reserve a copy of non-expanded space for plotting
   # Convert from map to world
@@ -70,21 +72,46 @@ def main():
   expanded_spaces = expanded_spaces[::DOWNSAMPLE]
 
 
+  #########################
+  ### SENSOR MODEL OBS
+  downsampled_angles = np.arange(msg.angle_min, msg.angle_max, msg.angle_increment * 18, dtype=np.float32)
+  downsampled_ranges = np.array(msg.ranges[::18], dtype=np.float32)
+  isNan = np.isnan(downsampled_ranges)
+  downsampled_ranges[isNan] = msg.range_max
+  obs = (downsampled_ranges, downsampled_angles)
+
+
   # Create particles from an expanded set of the empty space
   # THETA_DISCRETIZATION thetas per particle
-  particles = []
-
  
   # Angles will never change, pre-calculate them here.
   angles = np.linspace(0, 2 * np.pi, THETA_DISCRETIZATION)
 
+  # Weights assigned to particles
+  particle_weights = []
+
+  # Instantiate a Sensor Model
+  sm = SensorModelHeatMap(map_msg, [], [])
   
   # For each [x, y], create a list of [[x, y, theta_1] ... [x, y, theta_n]]
   progress = "\rIteration {}: Point: {}"
   for i, position in enumerate(expanded_spaces):
+    curr_particles = []
+    curr_weights = np.zeros((len(angles),))
     for theta in angles:
       next_particle = np.append(position, [theta], axis=0)
-      particles.append(next_particle)
+      curr_particles.append(next_particle)
+
+    # Calculate the weight for this particle
+    curr_particles = np.array(curr_particles, dtype=np.float32)
+    weights = np.ones(len(curr_particles)) / float(len(curr_particles))
+    sm.apply_sensor_model(curr_particles, obs, curr_weights)
+    position_weight = max(curr_weights)
+
+    # Update the weight for this particle in the image (2nd channel)
+    # using map coordinates.
+    column, row = empty_spaces[1][i], empty_spaces[0][i]
+    image_plot[1][row][column] = position_weight
 
     # Print progress
     print progress.format(i, position),
@@ -93,56 +120,32 @@ def main():
   print
 
 
-  # Cast so that Sensor Model can use it.
-  particles = np.array(particles, dtype=np.float32) 
-
-  print "FIRST CHUNK OF PARTICLES-------------"
-  print particles[0:THETA_DISCRETIZATION]
-  print
-
-  # Init. the model and process the scan
-  weights = np.ones(len(particles)) / float(len(particles))
-  sm = SensorModelHeatMap(map_msg, particles, weights)
-  sm.lidar_cb(msg)
-
-  # Partition w.r.t theta
-  calculated_weights = np.split(sm.weights, len(sm.weights) // THETA_DISCRETIZATION)
-
-  # Take the max
-  resulting_weights = map(lambda x: np.max(x), calculated_weights)
-
-  print "# OF PARTICLES AND WEIGHTS --------------"
-  print len(particles)
-  print len(resulting_weights)
-  print len(empty_spaces[0])
-
-  plot_results(empty_spaces[1][::DOWNSAMPLE], empty_spaces[0][::DOWNSAMPLE], resulting_weights, map_data)
+  plot_results(empty_spaces[1][::DOWNSAMPLE], empty_spaces[0][::DOWNSAMPLE], particle_weights, image_plot)
 
 
 def plot_results(X, Y, weights, im):
   # Given the resulting weights and their coordinates, plots the heat map.
-  max_weight = max(weights)
+  # max_weight = max(weights)
+
+  # Normalize likelihoods by max likelihood
+  max_weight = np.max(im[1])
+  min_weight = np.min(im[1])
+  im[1] /= max_weight
+
   print "MAX WEIGHT"
   print max_weight
 
-
-  implot = plt.imshow(im, cmap="hot")
-  heat_map = im
-  for i, w in enumerate(weights):
-    x = X[i]
-    y = Y[i]
-    heat_map[y][x] = w / max_weight
-
-  nested_weights = np.array([[1.0, 0.0, 0.0, x / max_weight] for x in weights])
-
   print "MIN WEIGHT"
-  print min(weights)
+  print min_weight
 
-  heat_plot = plt.imshow(heat_map, cmap=cm.Blues)
+  print np.where(im[1] != 0)
+ 
+  # Image has been dealt with as 2 stacked matrices.
+  # Perform a rollaxis to convert from (channels, W, H) to (W, H, channels)
+  im = np.rollaxis(im, 0, 3)
+  print im.shape
 
-
-#  plt.scatter(X, Y, c=nested_weights, lw=0)
-
+  implot = plt.imshow(im, cmap="spectral")
   plt.show()
 
 
