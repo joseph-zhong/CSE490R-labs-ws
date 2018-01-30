@@ -65,22 +65,22 @@ class SensorModelHeatMap:
     downsampled_ranges[isNan] = msg.range_max
     obs = (downsampled_ranges, self.downsampled_angles)
 
-    print "MSG RANGES________________________________"
-    print len(downsampled_ranges)
-    print downsampled_ranges 
-    print "MSG WEIGHTS________________________________" 
-    print self.weights
-    print "MSG ANGLES________________________________" 
-    print len(self.downsampled_angles)
-    print self.downsampled_angles
-    print "LASER RAY STEP"
-    print self.LASER_RAY_STEP
+#    print "MSG RANGES________________________________"
+#    print len(downsampled_ranges)
+#    print downsampled_ranges 
+#    print "MSG WEIGHTS________________________________" 
+#    print self.weights
+#    print "MSG ANGLES________________________________" 
+#    print len(self.downsampled_angles)
+#    print self.downsampled_angles
+#    print "LASER RAY STEP"
+#    print self.LASER_RAY_STEP
 
     self.apply_sensor_model(self.particles, obs, self.weights)
     self.weights /= np.sum(self.weights)
-    print 'weights'
-    print self.weights
-    #print 'weights'
+#    print 'weights'
+#    print self.weights
+#    print 'weights'
 
     self.last_laser = msg
     self.do_resample = True
@@ -117,11 +117,11 @@ class SensorModelHeatMap:
       # p_max is 1 only if observed = z_max, 0 otherwise
       p_max = observed == max_range_px
 
-      print "PROBS"
-      print p_hit
-      print p_short
-      print p_max
-      print p_rand
+#      print "PROBS"
+#      print p_hit
+#      print p_short
+#      print p_max
+#      print p_rand
 
       return Z_HIT * p_hit + Z_SHORT * p_short + Z_MAX * p_max + Z_RAND * p_rand
 

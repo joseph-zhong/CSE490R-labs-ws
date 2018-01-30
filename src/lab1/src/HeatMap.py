@@ -58,12 +58,15 @@ def main():
   # For plotting
   map_data = map_data == 0
   empty_spaces = np.where(map_data)
- 
+
+#  for i in range(len(empty_spaces[0])):
+#      print map_data[empty_spaces[0][i]][empty_spaces[1][i]]
+
   # Create particles from an expanded set of the empty space
   # Reserve a copy of non-expanded space for plotting
   # Convert from map to world
-  Y = [y * RESOLUTION + OFFSET_Y for y in empty_spaces[0]]
-  X = [x * RESOLUTION + OFFSET_X for x in empty_spaces[1]]
+  Y = empty_spaces[0] * RESOLUTION + OFFSET_Y
+  X = empty_spaces[1] * RESOLUTION + OFFSET_X
   expanded_spaces = [list(xy) for xy in zip(X, Y)]
 
   # map_to_world = lambda p: [p[0] * RESOLUTION + OFFSET_X, p[1] * RESOLUTION + OFFSET_Y]
@@ -71,14 +74,30 @@ def main():
   expanded_spaces = expanded_spaces[::DOWNSAMPLE]
 
   # Create particles, THETA_DISCRETIZATION thetas per particle
+  print "PARTICLES"
   particles = np.empty((0, 3), dtype=np.float32)
-  for i in range(THETA_DISCRETIZATION):
-    curr_thetas = np.array([[i * CONVERSION] for x in range(len(expanded_spaces))])
-    e = np.append(expanded_spaces, curr_thetas, axis=1)
-    particles = np.append(particles, e, axis=0)
+  
+  # Angles will never change, pre-calculate them here.
+  angles = np.linspace(0, 2 * np.pi, THETA_DISCRETIZATION)
+  
+  # Reshape for convenience
+  angles = angles.reshape(len(angles), 1)
 
-  print "FIRST 10 PARTICLES-------------"
-  print particles[0:10]
+
+  # For each [x, y], create a list of [[x, y, theta_1] ... [x, y, theta_n]]
+  progress = "\rIteration {}: Point: {}"
+  for i, position in enumerate(expanded_spaces):
+    position_copies = np.array([position] * THETA_DISCRETIZATION)
+    next_particles = np.concatenate((position_copies, angles), axis=1)
+
+    # Print progress
+    print progress.format(i, position),
+    sys.stdout.flush()
+
+    particles = np.append(particles, next_particles, axis=0) 
+
+  print "FIRST CHUNK OF PARTICLES-------------"
+  print particles[0:THETA_DISCRETIZATION]
   print
 
   # Init. the model and process the scan
@@ -97,7 +116,7 @@ def main():
   print len(resulting_weights)
   print len(empty_spaces[0])
 
-  plot_results(empty_spaces[0][::DOWNSAMPLE], empty_spaces[1][::DOWNSAMPLE], resulting_weights, map_data)
+  plot_results(empty_spaces[1][::DOWNSAMPLE], empty_spaces[0][::DOWNSAMPLE], resulting_weights, map_data)
 
 
 def plot_results(X, Y, weights, im):
@@ -105,6 +124,10 @@ def plot_results(X, Y, weights, im):
   max_weight = max(weights)
   print "MAX WEIGHT"
   print max_weight
+
+  print X
+  print Y
+
 
   nested_weights = np.array([[1.0, 0.0, 0.0, x / max_weight] for x in weights])
   print "MIN WEIGHT"
