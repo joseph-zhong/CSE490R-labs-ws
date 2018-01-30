@@ -22,7 +22,7 @@ OFFSET_X = 0.0
 OFFSET_Y = 0.0
 OFFSET_THETA = 0.0
 
-DOWNSAMPLE = 1  # Rate to downsample plot
+DOWNSAMPLE = 1  # Rate to downsample plot for debugging
 COUNT = 0  # Number of points plotted
 
 def main():
@@ -62,7 +62,6 @@ def main():
   empty_spaces = np.where(map_data)
   image_plot = np.stack((np.zeros(map_shape),) * 3)
   image_plot[0] = map_data
-#  image_plot[2] = 1
 
   # Reserve a copy of non-expanded space for plotting
   # Convert from map to world
@@ -119,13 +118,11 @@ def main():
 
   print
 
-
   plot_results(empty_spaces[1][::DOWNSAMPLE], empty_spaces[0][::DOWNSAMPLE], particle_weights, image_plot)
 
 
 def plot_results(X, Y, weights, im):
   # Given the resulting weights and their coordinates, plots the heat map.
-  # max_weight = max(weights)
 
   # Normalize likelihoods by max likelihood
   max_weight = np.max(im[1])
@@ -138,14 +135,20 @@ def plot_results(X, Y, weights, im):
   print "MIN WEIGHT"
   print min_weight
 
-  print np.where(im[1] != 0)
  
   # Image has been dealt with as 2 stacked matrices.
   # Perform a rollaxis to convert from (channels, W, H) to (W, H, channels)
   im = np.rollaxis(im, 0, 3)
   print im.shape
 
-  implot = plt.imshow(im, cmap="spectral")
+  # Plot map
+  implot = plt.imshow(im[:,:,0], cmap="cool")
+
+  # Replace 0s with NaN for plotting
+  particle_plot = im[:,:,1]
+  particle_plot[particle_plot == 0] = np.nan
+  implot = plt.imshow(im[:,:,1], cmap="Blues")
+
   plt.show()
 
 
