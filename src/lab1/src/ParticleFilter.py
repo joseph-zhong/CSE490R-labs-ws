@@ -91,7 +91,7 @@ class ParticleFilter():
 
   # Returns the expected pose given the current particles and weights
   def expected_pose(self):
-    return np.average(self.motion_model.particles, weights=self.weights, axis=0)
+    return np.average(self.motion_model.particles, axis=0)
     # TODO: Tim: Get rid of the weights
 
   # Callback for '/initialpose' topic. RVIZ publishes a message to this topic when you specify an initial pose using its GUI
@@ -111,7 +111,7 @@ class ParticleFilter():
     np.divide(self.sensor_model.weights, np.sum(self.sensor_model.weights), out=self.sensor_model.weights)
     self.motion_model.particles.fill(0)
     self.motion_model.particles += starting_particles
-    pprint(self.motion_model.particles)
+    #pprint(self.motion_model.particles)
     # YOUR CODE HERE
     
     self.state_lock.release()
@@ -138,7 +138,7 @@ class ParticleFilter():
 
     #Publishes the most recent laser measurement.
     #pprint(self.sensor_model.last_laser)
-    self.sensor_model.last_laser.header.stamp = rospy.Time()
+    self.sensor_model.last_laser.header.stamp = rospy.Time.now()
     #pprint(self.sensor_model.last_laser)
     self.pub_laser.publish(self.sensor_model.last_laser)
 

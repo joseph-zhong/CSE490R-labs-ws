@@ -12,11 +12,11 @@ from sensor_msgs.msg import LaserScan
 THETA_DISCRETIZATION = 112 # Discretization of scanning angle
 INV_SQUASH_FACTOR = 0.2    # Factor for helping the weight distribution to be less peaked
 
-Z_SHORT = 0.0  # Weight for short reading
-Z_MAX = 0.1    # Weight for max reading
-Z_RAND = 0.1   # Weight for random reading
-LAMBDA_SHORT = 0.5 # Parameter for short distribution
-SIGMA_HIT = 3.0 # Noise value for hit reading
+Z_SHORT = 0.1  # Weight for short reading
+Z_MAX = 0.005    # Weight for max reading
+Z_RAND = 0.005   # Weight for random reading
+LAMBDA_SHORT = 0.2  # Parameter for short distribution
+SIGMA_HIT = 4.0  # Noise value for hit reading
 Z_HIT = 0.8    # Weight for hit reading
 
 class SensorModel:
@@ -128,7 +128,7 @@ class SensorModel:
     sensor_model_table = np.fromfunction(interpolated_pdf, (table_width, table_width), dtype=np.float32)
     column_sums = sensor_model_table.sum(axis=0)
     sensor_model_table /= column_sums
-    print(sensor_model_table[:10])
+    #print(sensor_model_table[:10])
 
     return sensor_model_table
 
@@ -151,14 +151,14 @@ class SensorModel:
 
     print "MADE IT"
     print "OBS_RANGES___________________________"
-    print obs_ranges
+    #print obs_ranges
     print "WEIGHTS___________________________"
     print weights
     print "RANGES___________________________"
     print self.ranges
-    print proposal_dist.shape
-    print proposal_dist[0:10]
-    print len(weights)
+    #print proposal_dist.shape
+    #print proposal_dist[0:10]
+    #print len(weights)
 
     # Evaluate the sensor model on the GPU
     self.range_method.eval_sensor_model(obs_ranges, self.ranges, weights, num_rays, proposal_dist.shape[0])
