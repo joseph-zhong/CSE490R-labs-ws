@@ -111,14 +111,10 @@ class SensorModel:
     column_sums = sensor_model_table.sum(axis=0)
     sensor_model_table /= column_sums
 
-    print "SENSOR"
-    print sensor_model_table[0:10]
-
-
     return sensor_model_table
 
   def apply_sensor_model(self, proposal_dist, obs, weights):
-    print "start________________________________________________________________________"
+    # print "start________________________________________________________________________"
 
     obs_ranges = obs[0]
     obs_angles = obs[1]

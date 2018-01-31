@@ -22,7 +22,7 @@ class ReSampler:
       self.state_lock = state_lock
   
   def resample_naiive(self):
-    print "Resampling naiively"
+    # print "Resampling naiively"
 
     self.state_lock.acquire()
     #print "resampling"
@@ -35,7 +35,7 @@ class ReSampler:
     self.state_lock.release()
   
   def resample_low_variance(self):
-    print "Resampling with low-variance"
+    # print "Resampling with low-variance"
 
     self.state_lock.acquire()
     # Implement low variance re-sampling

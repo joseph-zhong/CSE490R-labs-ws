@@ -44,13 +44,26 @@ naiive_variance = [
   [ 0.05736139, 0.04914861, 6.50262097]
 ]
 
-fig1 = plt.figure(1)
-fig1.suptitle('Particle Resampling Compute Time', fontsize=20)
-plt.plot(num_particles, low_var_times)
-plt.plot(num_particles, naiive_times)
-plt.xlabel('# Particles')
-plt.ylabel('Compute Time (secs)')
+# fig1 = plt.figure(1)
+# fig1.suptitle('Particle Resampling Compute Time', fontsize=20)
+# plt.plot(num_particles, low_var_times)
+# plt.plot(num_particles, naiive_times)
+# plt.xlabel('# Particles')
+# plt.ylabel('Compute Time (secs)')
+#
+# plt.legend(('low_variance', 'naiive'))
+# plt.show()
+#
 
-plt.legend(('low_variance', 'naiive'))
-plt.show()
+
+
+
+
+
+
+
+
+
+
+
 
