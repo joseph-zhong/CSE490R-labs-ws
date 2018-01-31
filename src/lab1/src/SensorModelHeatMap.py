@@ -3,7 +3,6 @@
 import numpy as np
 import rospy
 import range_libc
-from scipy.stats import norm
 import time
 from threading import Lock
 from sensor_msgs.msg import LaserScan
@@ -13,11 +12,17 @@ THETA_DISCRETIZATION = 112 # Discretization of scanning angle
 INV_SQUASH_FACTOR = 0.2    # Factor for helping the weight distribution to be less peaked
 
 Z_SHORT = 0.1  # Weight for short reading
-Z_MAX = 0.01    # Weight for max reading
-Z_RAND = 0.025   # Weight for random reading
+Z_MAX = 0.1    # Weight for max reading
+Z_RAND = 0.1   # Weight for random reading
 LAMBDA_SHORT = 0.2  # Parameter for short distribution
-SIGMA_HIT = 5.0  # Noise value for hit reading
-Z_HIT = 0.865    # Weight for hit reading
+SIGMA_HIT = 6  # Noise value for hit reading
+Z_HIT = 0.7    # Weight for hit reading
+
+# Z_MAX = 0.01    # Weight for max reading
+# Z_RAND = 0.025   # Weight for random reading
+# LAMBDA_SHORT = 0.2  # Parameter for short distribution
+# SIGMA_HIT = 5.0  # Noise value for hit reading
+# Z_HIT = 0.865    # Weight for hit reading
 
 class SensorModelHeatMap:
   def __init__(self, map_msg, particles, weights, state_lock=None):
@@ -65,22 +70,8 @@ class SensorModelHeatMap:
     downsampled_ranges[isNan] = msg.range_max
     obs = (downsampled_ranges, self.downsampled_angles)
 
-#    print "MSG RANGES________________________________"
-#    print len(downsampled_ranges)
-#    print downsampled_ranges 
-#    print "MSG WEIGHTS________________________________" 
-#    print self.weights
-#    print "MSG ANGLES________________________________" 
-#    print len(self.downsampled_angles)
-#    print self.downsampled_angles
-#    print "LASER RAY STEP"
-#    print self.LASER_RAY_STEP
-
     self.apply_sensor_model(self.particles, obs, self.weights)
     self.weights /= np.sum(self.weights)
-#    print 'weights'
-#    print self.weights
-#    print 'weights'
 
     self.last_laser = msg
     self.do_resample = True
@@ -97,7 +88,6 @@ class SensorModelHeatMap:
     table_width = int(max_range_px) + 1
     sensor_model_table = np.zeros((table_width,table_width))
 
-    # Tam - Calculate z_t^k* using x_t (from downsampled angles???)
     # Populate sensor model table as specified
     # Note that the row corresponds to the observed measurement and the column corresponds to the expected measurement
     # YOUR CODE HERE
@@ -106,7 +96,9 @@ class SensorModelHeatMap:
     def interpolated_pdf(observed, expected):
 
       # Sample from normal pdf
-      p_hit = norm.pdf(observed, expected, SIGMA_HIT)
+#      p_hit = norm.pdf(observed, expected, SIGMA_HIT)
+      sigma_squared = SIGMA_HIT ** 2
+      p_hit = (1 / np.sqrt(2 * np.pi * sigma_squared)) * np.exp(-(np.power(observed - expected, 2) / (2 * sigma_squared)))
 
       condition = observed <= expected
       p_short = condition * LAMBDA_SHORT * np.exp(-LAMBDA_SHORT * observed)
@@ -117,11 +109,6 @@ class SensorModelHeatMap:
       # p_max is 1 only if observed = z_max, 0 otherwise
       p_max = observed == max_range_px
 
-#      print "PROBS"
-#      print p_hit
-#      print p_short
-#      print p_max
-#      print p_rand
 
       return Z_HIT * p_hit + Z_SHORT * p_short + Z_MAX * p_max + Z_RAND * p_rand
 
@@ -129,13 +116,14 @@ class SensorModelHeatMap:
     sensor_model_table = np.fromfunction(interpolated_pdf, (table_width, table_width), dtype=np.float32)
     column_sums = sensor_model_table.sum(axis=0)
     sensor_model_table /= column_sums
-    print "SENSOR MODEL TABLE ------------------------------------"
-    print(sensor_model_table[:10])
+
+    print "SENSOR"
+    print sensor_model_table[0:10]
+
 
     return sensor_model_table
 
   def apply_sensor_model(self, proposal_dist, obs, weights):
-#    print "start________________________________________________________________________"
 
     obs_ranges = obs[0]
     obs_angles = obs[1]
@@ -149,9 +137,6 @@ class SensorModelHeatMap:
     self.queries[:,:] = proposal_dist[:,:]
 
     self.range_method.calc_range_repeat_angles(self.queries, obs_angles, self.ranges)
-
-#    print "PROP DIST SHAPE"
-#    print proposal_dist.shape
 
     # Evaluate the sensor model on the GPU
     self.range_method.eval_sensor_model(obs_ranges, self.ranges, weights, num_rays, proposal_dist.shape[0])

@@ -1,8 +1,13 @@
 #!/usr/bin/env python
 
-import rospy 
+import rospy
+
 import numpy as np
+import matplotlib.pyplot as plt
+
 import time
+
+import utils
 import utils as Utils
 import tf.transformations
 import tf
@@ -21,9 +26,10 @@ from MotionModel import OdometryMotionModel, KinematicMotionModel
 
 STARTING_NOISE_MEAN = 0.0
 STARTING_NOISE_STD = 1e-2
- 
-class ParticleFilter():
 
+MAXIMUM_POINTS_TO_VISUALIZE = 500
+ 
+class ParticleFilter(object):
   def __init__(self):
     self.MAX_PARTICLES = int(rospy.get_param("~max_particles")) # The maximum number of particles
     self.MAX_VIZ_PARTICLES = int(rospy.get_param("~max_viz_particles")) # The maximum number of particles to visualize
@@ -55,11 +61,11 @@ class ParticleFilter():
     self.pub_laser     = rospy.Publisher("/pf/viz/scan", LaserScan, queue_size = 1) # Publishes the most recent laser scan
 
     self.RESAMPLE_TYPE = rospy.get_param("~resample_type", "naiive") # Whether to use naiive or low variance sampling
-    self.resampler = ReSampler(self.particles, self.weights, self.state_lock)  # An object used for resampling
+    self.resampler = ReSampler(self.RESAMPLE_TYPE, self.particles, self.weights, self.state_lock)  # An object used for resampling
 
     self.sensor_model = SensorModel(map_msg, self.particles, self.weights, self.state_lock) # An object used for applying sensor model
     self.laser_sub = rospy.Subscriber(rospy.get_param("~scan_topic", "/scan"), LaserScan, self.sensor_model.lidar_cb, queue_size=1)
-    
+
     self.MOTION_MODEL_TYPE = rospy.get_param("~motion_model", "kinematic") # Whether to use the odometry or kinematics based motion model
     if self.MOTION_MODEL_TYPE == "kinematic":
       self.motion_model = KinematicMotionModel(self.particles, self.state_lock) # An object used for applying kinematic motion model
@@ -69,11 +75,20 @@ class ParticleFilter():
       self.motion_model = OdometryMotionModel(self.particles, self.state_lock)# An object used for applying odometry motion model
       self.motion_sub = rospy.Subscriber(rospy.get_param("~motion_topic", "/vesc/odom"), Odometry, self.motion_model.motion_cb, queue_size=1)
     else:
-      print "Unrecognized motion model: "+ self.MOTION_MODEL_TYPE
-      assert(False)
-    
+      raise Exception("Unrecognized motion model: "+ self.MOTION_MODEL_TYPE)
+
     # Use to initialize through rviz. Check clicked_pose_cb for more info
     self.pose_sub  = rospy.Subscriber("/initialpose", PoseWithCovarianceStamped, self.clicked_pose_cb, queue_size=1)
+
+    # Subscribers to /pf/ta/viz/particles to compute RMS error.
+    self.ta_particle_sub = rospy.Subscriber("/pf/ta/viz/particles", PoseArray, self.ta_particle_cb, queue_size=1)
+    self.ta_particles = np.zeros_like(self.particles)
+    self.rms = None
+
+    # Fields for tracking resample-iteration timing and error over time.
+    self.realtimes = []
+    self.resample_time = []
+    self.rmses = []
 
   # Initialize the particles to cover the map
   def initialize_global(self, map_msg):
@@ -99,7 +114,7 @@ class ParticleFilter():
   # Remember to apply a reasonable amount of Gaussian noise to each particle's pose
   def clicked_pose_cb(self, msg):
     self.state_lock.acquire()
-    print("Clicked pose message")
+    # print("Clicked pose message")
     #pprint(msg)
     start_x = msg.pose.pose.position.x
     start_y = msg.pose.pose.position.y
@@ -111,7 +126,6 @@ class ParticleFilter():
     np.divide(self.sensor_model.weights, np.sum(self.sensor_model.weights), out=self.sensor_model.weights)
     self.motion_model.particles.fill(0)
     self.motion_model.particles += starting_particles
-    #pprint(self.motion_model.particles)
     # YOUR CODE HERE
     
     self.state_lock.release()
@@ -185,9 +199,14 @@ class ParticleFilter():
 
     self.state_lock.release()
 
+  def ta_particle_cb(self, msg):
+    # print "ENTERED TA_PARTICLE_CB"
+    for i, pose in enumerate(msg.poses):
+      self.ta_particles[i] = pose.position.x, pose.position.y, utils.quaternion_to_angle(pose.orientation)
+
 # Suggested main
-if __name__ == '__main__':
   rospy.init_node("particle_filter", anonymous=True) # Initialize the node
+if __name__ == '__main__':
   pf = ParticleFilter() # Create the particle filter
   
   while not rospy.is_shutdown(): # Keep going until we kill it
@@ -196,14 +215,57 @@ if __name__ == '__main__':
       pf.sensor_model.do_resample = False # Reset so that we don't keep resampling
 
       # Resample
+      s_time = time.time()
       if pf.RESAMPLE_TYPE == "naiive":
         pf.resampler.resample_naiive()
       elif pf.RESAMPLE_TYPE == "low_variance":
         pf.resampler.resample_low_variance()
       else:
-        print "Unrecognized resampling method: " + pf.RESAMPLE_TYPE
+        raise Exception("Unrecognized resampling method: " + pf.RESAMPLE_TYPE)
+      e_time = time.time()
 
-    pf.visualize()  # Perform visualization
+      realtime = rospy.Time.now().secs
+      pf.realtimes.append(realtime)
+      print len(pf.realtimes)
 
+      # Compute RMS.
+      pf.rms = np.sqrt(np.sum(np.square(pf.particles - pf.ta_particles), axis=0) / len(pf.particles))
+      pf.rmses.append(pf.rms)
 
+      pf.visualize()  # Perform visualization
 
+    # 4.6.1: Plot distribution for the re-sampled particles.
+    # if len(pf.realtimes) == 15 or len(pf.realtimes) == 20:
+    #   dst_fig = plt.figure(1)
+    #   dst_fig.suptitle('Particle Resampling Distribution (n={}, t={})'.format(
+    #     len(pf.resampler.particle_indices), len(pf.realtimes)), fontsize=17)
+    #   plt.hist(pf.resampler.particle_indices, bins=len(pf.resampler.particle_indices))
+    #   plt.xlabel('Particle Indices')
+    #   plt.ylabel('Number of particles')
+    #   plt.show()
+
+    # 4.6.3: Plot RMS error over time for the re-sampled particles.
+    # if len(pf.realtimes) == MAXIMUM_POINTS_TO_VISUALIZE:
+    #   assert len(pf.realtimes) == len(pf.rmses), "Unexpected lengths to plot: '{}' vs '{}'".format(len(pf.realtimes), len(pf.rmses))
+    #   rms_fig = plt.figure(2)
+    #   rms_fig.suptitle('Particle Resampling RMS Error over time (n={})'.format(len(pf.resampler.particle_indices)), fontsize=17)
+    #
+    #
+    #   pf.rmses = np.array(pf.rmses)
+    #
+    #   plt.plot(pf.realtimes, pf.rmses[:, 0])
+    #   plt.plot(pf.realtimes, pf.rmses[:, 1])
+    #   plt.plot(pf.realtimes, pf.rmses[:, 2])
+    #
+    #   plt.legend(('Pose: x', 'Pose: y', 'Pose: theta'))
+    #   plt.xlabel('Rospy Time (s)')
+    #   plt.ylabel('RMS Error')
+    #   plt.show()
+    # 4.6.3: Pickle RMS to plot later.
+    if len(pf.realtimes) == MAXIMUM_POINTS_TO_VISUALIZE:
+      assert len(pf.realtimes) == len(pf.rmses), "Unexpected lengths to plot: '{}' vs '{}'".format(len(pf.realtimes), len(pf.rmses))
+      pf.rmses = np.array(pf.rmses)
+      np.save("rmses_{}".format(len(pf.particle_indices)), pf.rmses)
+      np.save("realtimes", pf.realtimes)
+      print 'fuck'
+      assert False

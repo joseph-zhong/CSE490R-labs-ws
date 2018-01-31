@@ -9,13 +9,12 @@ from threading import Lock
 MAX_SAMPLES = 100
 
 class ReSampler:
-  def __init__(self, particles, weights, state_lock=None):
+  def __init__(self, resample_type, particles, weights, state_lock=None):
+    self.resample_type = resample_type
     self.particles = particles
     self.weights = weights
-    self.particle_indices = None  
+    self.particle_indices = None
     self.step_array = None
-    self.times = []
-    self.variances = []
 
     if state_lock is None:
       self.state_lock = Lock()
@@ -23,33 +22,21 @@ class ReSampler:
       self.state_lock = state_lock
   
   def resample_naiive(self):
+    # print "Resampling naiively"
+
     self.state_lock.acquire()
     #print "resampling"
     # Use np.random.choice to re-sample 
     # YOUR CODE HERE
     # Set the new particles via the indices.
-    s_time = time.time()
-    indices = np.random.choice(len(self.particles), size=len(self.particles), p=self.weights)
-    e_time = time.time()
-    np.take(self.particles, indices,  axis=0, out=self.particles)
-
-    var = np.var(self.particles, axis=0)
-    compute_time = e_time - s_time
-    self.times.append(compute_time)
-    self.variances.append(var)
-    # if len(self.times) >= MAX_SAMPLES:
-    #   plt.plot(self.times)
-    #   plt.show()
-
-    print "Naiive: [Mean variance: '{}'] [Times: '{}']".format(np.mean(self.variances, axis=0), np.mean(self.times))
-    # print "naiive re-sampler variance: '{}' computed in '{}' seconds".format(var, compute_time)
-    # with open('resample_naiive_variance.csv', 'aw') as fin:
-    #   # fin.write('{};{}'.format(var, compute_time))
-    #   fin.write('{}'.format(compute_time))
+    self.particle_indices = np.random.choice(len(self.particles), size=len(self.particles), p=self.weights)
+    np.take(self.particles, self.particle_indices,  axis=0, out=self.particles)
 
     self.state_lock.release()
   
   def resample_low_variance(self):
+    # print "Resampling with low-variance"
+
     self.state_lock.acquire()
     # Implement low variance re-sampling
     # YOUR CODE HERE
@@ -59,11 +46,12 @@ class ReSampler:
     # Choose a random weight [0, 1/M].
     # Iterate through each weight, add the particle if its weight is greater than the
     # incremented random choice. Repeat m total times.
+    # s_time = time.time()
     # M = len(self.particles)
     # i = 0
     # r = random.random() / M
     # cumsum = np.cumsum(self.weights)
-    # resampled_particles = np.zeros(M, 3)
+    # resampled_particles = np.zeros(shape=(M, 3))
     #
     # for m, w in enumerate(self.weights):
     #   u = r + float(m) / M
@@ -71,6 +59,7 @@ class ReSampler:
     #     i += 1
     #     assert i < M
     #   resampled_particles[m] = self.particles[i]
+    # e_time = time.time()
     # self.particles = resampled_particles
 
     # TODO josephz: Check that this version is faster.
@@ -80,7 +69,7 @@ class ReSampler:
     M = len(self.particles)
     r = random.random()
     positions = (r + np.arange(M)) / M
-    indices = np.zeros(M, 'i')
+    self.particle_indices = np.zeros(M, 'i')
     cumsum = np.cumsum(self.weights)
     i = j = 0
 
@@ -88,26 +77,12 @@ class ReSampler:
     # to the particle. Otherwise, increment the cumulative weight.
     while i < M:
       if positions[i] < cumsum[j]:
-        indices[i] = j
+        self.particle_indices[i] = j
         i += 1
       else:
         j += 1
     e_time = time.time()
     # Set the new particles via the indices.
-    np.take(self.particles, indices, axis=0, out=self.particles)
-
-    var = np.var(self.particles, axis=0)
-    compute_time = e_time - s_time
-    self.times.append(compute_time)
-    self.variances.append(var)
-    # if len(self.times) >= MAX_SAMPLES:
-    #   plt.plot(self.times)
-    #   plt.show()
-    print "Low-var: [Mean variance: '{}'] [Times: '{}']".format(np.mean(self.variances, axis=0), np.mean(self.times))
-
-    # print "low-var re-sampler variance: '{}', computed in '{}' seconds".format(var, compute_time)
-    # with open('resample_low_var_variance.csv', 'aw') as fin:
-    #   # fin.write('{};{}'.format(var, compute_time))
-    #   fin.write('{}'.format(compute_time))
+    np.take(self.particles, self.particle_indices, axis=0, out=self.particles)
 
     self.state_lock.release()
