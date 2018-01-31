@@ -3,7 +3,6 @@
 import numpy as np
 import rospy
 import range_libc
-from scipy.stats import norm
 import time
 from threading import Lock
 from sensor_msgs.msg import LaserScan

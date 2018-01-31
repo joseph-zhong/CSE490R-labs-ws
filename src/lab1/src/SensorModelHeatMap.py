@@ -3,7 +3,6 @@
 import numpy as np
 import rospy
 import range_libc
-from scipy.stats import norm
 import time
 from threading import Lock
 from sensor_msgs.msg import LaserScan
@@ -13,11 +12,11 @@ THETA_DISCRETIZATION = 112 # Discretization of scanning angle
 INV_SQUASH_FACTOR = 0.2    # Factor for helping the weight distribution to be less peaked
 
 Z_SHORT = 0.1  # Weight for short reading
-Z_MAX = 0.015    # Weight for max reading
-Z_RAND = 0.02   # Weight for random reading
+Z_MAX = 0.1    # Weight for max reading
+Z_RAND = 0.1   # Weight for random reading
 LAMBDA_SHORT = 0.2  # Parameter for short distribution
-SIGMA_HIT = 5.0  # Noise value for hit reading
-Z_HIT = 0.865    # Weight for hit reading
+SIGMA_HIT = 6  # Noise value for hit reading
+Z_HIT = 0.7    # Weight for hit reading
 
 class SensorModelHeatMap:
   def __init__(self, map_msg, particles, weights, state_lock=None):

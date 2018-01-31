@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import numpy as np
 import sys
+import time
 
 from nav_msgs.srv import GetMap
 import range_libc
@@ -14,30 +15,23 @@ from sensor_msgs.msg import LaserScan
 
 from SensorModelHeatMap import SensorModelHeatMap
 
-THETA_DISCRETIZATION = 112
-CONVERSION = 2 * np.pi / THETA_DISCRETIZATION
 
-RESOLUTION = 0.0
-OFFSET_X = 0.0
-OFFSET_Y = 0.0
-OFFSET_THETA = 0.0
-
-DOWNSAMPLE = 1  # Rate to downsample plot for debugging
+DOWNSAMPLE = 10  # Rate to downsample plot for data collection
 COUNT = 0  # Number of points plotted
 
 def main():
 
-  if len(sys.argv) < 3:
-    print "Usage: python HeatMap.py <laser_scanX.bag> <output_name>"
+  if len(sys.argv) < 2:
+    print "Usage: python HeatMap.py <laser_scanX.bag>"
     sys.exit()
 
-  print "Hello!"
+  laser_bag_path = sys.argv[1]
 
-  # Output figure
-  output_name = sys.argv[2]
+  # Process Bag
+  laser_bag = rosbag.Bag(laser_bag_path)
+  topic, msg, t = next(laser_bag.read_messages())
 
   # Get the map
-  laser_bag_path = sys.argv[1]
   map_msg_srv = rospy.ServiceProxy("static_map", GetMap)
   try:
     map_msg = map_msg_srv().map
@@ -45,11 +39,40 @@ def main():
     raise rospy.ServiceException("Service did not process: request " + str(exc))
 
 
-  # Process Bag
-  laser_bag = rosbag.Bag(laser_bag_path)
-  topic, msg, t = next(laser_bag.read_messages())
+  times = []
 
-  print map_msg.info
+  # Collect computation time as theta increases.
+  progress = "\nDisc. : {} Time taken: {} ------------------\n"
+  for i in range(10, 201, 10):
+    start = time.time()
+    heat_map_construction(i, msg, map_msg)
+    end = time.time()
+    duration = end - start
+
+    print progress.format(i, duration),
+    sys.stdout.flush() 
+    
+    times.append(duration)
+
+  # Plot the times
+  fig = plt.figure()
+  ax = fig.add_subplot(111)  
+  ax.set_title('Theta Discretization vs. Computation Time')
+  ax.set_xlabel('Number of Angles')
+  ax.set_ylabel('Computation Time in Seconds')
+  ax.scatter(range(10, 201, 10), times, '-bo')
+  
+  plt.show()
+
+
+def heat_map_construction(theta, msg, map_msg):
+
+  THETA_DISCRETIZATION = theta
+  CONVERSION = 2 * np.pi / THETA_DISCRETIZATION
+
+  # print "Hello!"
+
+  # print map_msg.info
   RESOLUTION = map_msg.info.resolution
   OFFSET_X = map_msg.info.origin.position.x
   OFFSET_Y = map_msg.info.origin.position.y
@@ -116,40 +139,6 @@ def main():
     print progress.format(i, position),
     sys.stdout.flush()
 
-  print
-
-  plot_results(empty_spaces[1][::DOWNSAMPLE], empty_spaces[0][::DOWNSAMPLE], output_name, image_plot)
-
-
-def plot_results(X, Y, output_name, im):
-  # Given the resulting weights and their coordinates, plots the heat map.
-
-  # Normalize likelihoods by max likelihood
-  max_weight = np.max(im[1])
-  min_weight = np.min(im[1])
-  im[1] /= max_weight
-
-  print "MAX WEIGHT"
-  print max_weight
-
-  print "MIN WEIGHT"
-  print min_weight
-
- 
-  # Image has been dealt with as 2 stacked matrices.
-  # Perform a rollaxis to convert from (channels, W, H) to (W, H, channels)
-  im = np.rollaxis(im, 0, 3)
-  print im.shape
-
-  # Plot map
-  implot = plt.imshow(im[:,:,0], cmap="Greys")
-
-  # Replace 0s with NaN for plotting
-  particle_plot = im[:,:,1]
-  particle_plot[particle_plot == 0] = np.nan
-  implot = plt.imshow(im[:,:,1], cmap="cool_r")
-
-  plt.savefig(output_name, dpi=500)
 
 
 
