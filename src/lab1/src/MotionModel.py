@@ -17,7 +17,8 @@ ODOM_NOISE_MEAN = 0.0
 ODOM_NOISE_STD = 2e-2
 
 KINEMATIC_NOISE_MEAN = 0.0
-KINEMATIC_NOISE_STD = 1e-3
+KINEMATIC_NOISE_POSITION_STD = 1e-1  # 3e-1 looks pretty good from RViz
+KINEMATIC_NOISE_DELTA_STD = 1e-1  # 2e-1 seems pretty good for this based on looking at it in RViz
 
 
 # Car globals.
@@ -83,10 +84,14 @@ class KinematicMotionModel:
     self.last_servo_cmd = None # The most recent servo command
     self.last_vesc_stamp = None # The time stamp from the previous vesc state msg
     self.particles = particles
-    self.SPEED_TO_ERPM_OFFSET = float(rospy.get_param("/vesc/speed_to_erpm_offset")) # Offset conversion param from rpm to speed
-    self.SPEED_TO_ERPM_GAIN = float(rospy.get_param("/vesc/speed_to_erpm_gain"))   # Gain conversion param from rpm to speed
-    self.STEERING_TO_SERVO_OFFSET = float(rospy.get_param("/vesc/steering_angle_to_servo_offset")) # Offset conversion param from servo position to steering angle
-    self.STEERING_TO_SERVO_GAIN = float(rospy.get_param("/vesc/steering_angle_to_servo_gain")) # Gain conversion param from servo position to steering angle
+    # self.SPEED_TO_ERPM_OFFSET = float(rospy.get_param("/vesc/speed_to_erpm_offset")) # Offset conversion param from rpm to speed
+    # self.SPEED_TO_ERPM_GAIN = float(rospy.get_param("/vesc/speed_to_erpm_gain"))   # Gain conversion param from rpm to speed
+    # self.STEERING_TO_SERVO_OFFSET = float(rospy.get_param("/vesc/steering_angle_to_servo_offset")) # Offset conversion param from servo position to steering angle
+    # self.STEERING_TO_SERVO_GAIN = float(rospy.get_param("/vesc/steering_angle_to_servo_gain")) # Gain conversion param from servo position to steering angle
+    self.SPEED_TO_ERPM_OFFSET = 0.0  # float(rospy.get_param("/vesc/speed_to_erpm_offset")) # Offset conversion param from rpm to speed
+    self.SPEED_TO_ERPM_GAIN = 4614  # float(rospy.get_param("/vesc/speed_to_erpm_gain"))   # Gain conversion param from rpm to speed
+    self.STEERING_TO_SERVO_OFFSET = 0.5304  # float(rospy.get_param("/vesc/steering_angle_to_servo_offset")) # Offset conversion param from servo position to steering angle
+    self.STEERING_TO_SERVO_GAIN = -1.2135  # float(rospy.get_param("/vesc/steering_angle_to_servo_gain")) # Gain conversion param from servo position to steering angle
 
     if state_lock is None:
       self.state_lock = Lock()
@@ -139,9 +144,12 @@ class KinematicMotionModel:
     v, delta, dt = control
     dt = dt.to_sec()
 
-    noise = np.random.normal(loc=ODOM_NOISE_MEAN, scale=ODOM_NOISE_STD, size=(len(self.particles), 2))
-    noisy_v = v + noise[:, 0]
-    noisy_delta = delta + noise[:, 1]
+    position_noise = np.random.normal(loc=KINEMATIC_NOISE_MEAN, scale=KINEMATIC_NOISE_POSITION_STD,
+                                      size=(len(self.particles), 1))
+    delta_noise = np.random.normal(loc=KINEMATIC_NOISE_MEAN, scale=KINEMATIC_NOISE_DELTA_STD,
+                                   size=(len(self.particles), 1))
+    noisy_v = v + position_noise[:, 0]
+    noisy_delta = delta + delta_noise[:, 0]
 
     theta = self.particles[:, 2]
 
