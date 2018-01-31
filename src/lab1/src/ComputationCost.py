@@ -60,7 +60,7 @@ def main():
   ax.set_title('Theta Discretization vs. Computation Time')
   ax.set_xlabel('Number of Angles')
   ax.set_ylabel('Computation Time in Seconds')
-  ax.scatter(range(10, 201, 10), times, '-bo')
+  ax.scatter(range(10, 201, 10), times)
   
   plt.show()
 
