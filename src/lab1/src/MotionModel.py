@@ -17,8 +17,8 @@ ODOM_NOISE_MEAN = 0.0
 ODOM_NOISE_STD = 2e-2
 
 KINEMATIC_NOISE_MEAN = 0.0
-KINEMATIC_NOISE_POSITION_STD = 1e-1  # 3e-1 looks pretty good from RViz
-KINEMATIC_NOISE_DELTA_STD = 1e-1  # 2e-1 seems pretty good for this based on looking at it in RViz
+KINEMATIC_NOISE_POSITION_STD = 5e-1  # 3e-1 looks pretty good from RViz
+KINEMATIC_NOISE_DELTA_STD = 4e-1  # 2e-1 seems pretty good for this based on looking at it in RViz
 
 
 # Car globals.
