@@ -16,15 +16,16 @@ SUB_TOPIC = '/camera/color/image_raw'
 
 class Controller(object):
   def __init__(self):
+    control_pub = rospy.Publisher(PUB_TOPIC, AckermannDriveStamped, queue_size=1)  # Publishes the expected pose
+
     self.CONTROLLER_TYPE = rospy.get_param("~controller_type", FORWARD_CONTROLLER)
     if self.CONTROLLER_TYPE == FORWARD_CONTROLLER:
-      self.controller = ForwardController()
+      self.controller = ForwardController(control_pub)
     else:
-      self.controller = FeedbackController()
+      self.controller = FeedbackController(control_pub)
 
 
     # Sets up the subscribers and publishers.
-    self.control_pub = rospy.Publisher(PUB_TOPIC, AckermannDriveStamped, queue_size=1)  # Publishes the expected pose
     self.image_sub = rospy.Subscriber(SUB_TOPIC, Image, self.controller.image_cb, queue_size=1)
 
 
