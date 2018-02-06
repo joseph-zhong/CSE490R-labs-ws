@@ -1,0 +1,7 @@
+
+
+<launch>
+<arg name="controller_type" default="forward" />
+<node pkg="lab1" type="ParticleFilter.py" name="Particle_filter" output="screen">
+</node>
+</launch>
