@@ -29,6 +29,7 @@ class Controller(object):
 
 
 if __name__ == '__main__':
+  rospy.init_node('controller', anonymous=True)
   controller = Controller()
 
   while not rospy.is_shutdown():

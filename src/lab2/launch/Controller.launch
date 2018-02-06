@@ -1,7 +1,8 @@
 
 
 <launch>
-<arg name="controller_type" default="forward" />
-<node pkg="lab1" type="ParticleFilter.py" name="Particle_filter" output="screen">
-</node>
+    <arg name="controller_type" default="forward" />
+    <node pkg="lab2" type="Controller.py" name="Controller" output="screen">
+        <param name="controller_type" value="$(arg controller_type)"/>
+    </node>
 </launch>
