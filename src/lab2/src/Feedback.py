@@ -2,6 +2,7 @@
 
 from pprint import pprint
 from ackermann_msgs.msg import AckermannDriveStamped
+import rospy
 
 SPEED = 0.5
 KP = 1
@@ -15,12 +16,16 @@ class FeedbackController(object):
         self.last_error = 0
 
     def image_cb(self, msg):
-        error = self.img_to_error(msg)
+        start = rospy.Time.now()
+        error, image = self.img_to_error(msg)
         steering_angle = self.error_to_control(error)
+        process_time = rospy.Time.now() - start
+        self.visualize(steering_angle, process_time, image)
         self.publish_controls(steering_angle)
 
     def img_to_error(self, msg):
-        return 0
+        image = msg
+        return 0, image
 
     def error_to_control(self, error):
         delta_error = error - self.last_error
@@ -35,3 +40,6 @@ class FeedbackController(object):
         ads.drive.steering_angle = steering_angle
         ads.drive.speed = SPEED
         self.control_pub.publish(ads)
+
+    def visualize(self, steering_angle, process_time, image):
+        pass
