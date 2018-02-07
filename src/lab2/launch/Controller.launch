@@ -1,5 +1,4 @@
 
-
 <launch>
     <arg name="controller_type" default="feedback" />
     <node pkg="lab2" type="Controller.py" name="Controller" output="screen">

@@ -5,8 +5,8 @@ from ackermann_msgs.msg import AckermannDriveStamped
 
 
 class ForwardController(object):
-    def __init__(self, control_pub):
-        self.control_pub = control_pub
+  def __init__(self, control_pub):
+    self.control_pub = control_pub
 
-    def image_cb(self, msg):
-        pprint(msg)
+  def image_cb(self, msg):
+    pprint(msg)

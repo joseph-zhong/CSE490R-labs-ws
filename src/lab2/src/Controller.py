@@ -21,9 +21,10 @@ class Controller(object):
     self.CONTROLLER_TYPE = rospy.get_param("~controller_type", FORWARD_CONTROLLER)
     if self.CONTROLLER_TYPE == FORWARD_CONTROLLER:
       self.controller = ForwardController(control_pub)
-    else:
+    elif self.CONTROLLER_TYPE == FEEDBACK_CONTROLLER:
       self.controller = FeedbackController(control_pub)
-
+    else:
+      assert False, "Unrecognized controller type: '{}'".format(self.CONTROLLER_TYPE)
 
     # Sets up the subscribers and publishers.
     self.image_sub = rospy.Subscriber(SUB_TOPIC, Image, self.controller.image_cb, queue_size=1)
