@@ -7,6 +7,7 @@ from pprint import pprint
 from cv_bridge import CvBridge, CvBridgeError
 from ackermann_msgs.msg import AckermannDriveStamped
 import rospy
+from util import _mask_img
 
 # Setup Globals.
 SPEED = 0.5
@@ -19,7 +20,7 @@ ROI_HEIGHT_HI = 200
 ROI_HEIGHT_LO = 10
 # HSV triplet boundaries.
 # REVIEW josephz: This needs to be tuned, consider instantiating outside this class.
-BOUNDARIES = [
+boundaries = [
   ((05, 100, 100), (35, 240, 220))
 ]
 
@@ -79,7 +80,7 @@ class FeedbackController(object):
     def img_to_error(self, msg):
         brg_img = self.cvBridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
         hsv_img = cv2.cvtColor(brg_img, cv2.COLOR_BGR2HSV)
-        mask_img = self._mask_img(hsv_img)
+        mask_img = _mask_img(hsv_img, boundaries)
         self.visualize(image=mask_img)
 
 
@@ -101,19 +102,6 @@ class FeedbackController(object):
         print(keypoints, avg_x)
         err = img_width / 2 - avg_x
         return err, mask_img
-
-    def _mask_img(self, img):
-        """ Applies the boundaries to produce the mask image.
-        """
-        img_out = np.zeros_like(img)
-        for (lower, upper) in BOUNDARIES:
-            # OpenCV expects bounds to be NumPy Arrays
-            #lower = np.array(lower, dtype="uint8")
-            #upper = np.array(upper, dtype="uint8")
-
-            mask = cv2.inRange(img, lower, upper)
-            cv2.bitwise_and(img, img, mask=mask, dst=img_out)
-        return img_out
 
     def error_to_control(self, error):
         delta_error = error - self.last_error
