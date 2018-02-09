@@ -20,7 +20,7 @@ ROI_HEIGHT_LO = 10
 # HSV triplet boundaries.
 # REVIEW josephz: This needs to be tuned, consider instantiating outside this class.
 BOUNDARIES = [
-  ((217, 50, 50), (217, 100, 100))
+  ((90, 0, 0), (115, 255, 255))
 ]
 
 # Setup SimpleBlobDetector parameters.
@@ -129,4 +129,5 @@ class FeedbackController(object):
 
     def visualize(self, steering_angle, process_time, image):
         print "visualizing image"
-        self.image_pub.publish(image)
+        rosImg = self.cvBridge.cv2_to_imgmsg(image)
+        self.image_pub.publish(rosImg)

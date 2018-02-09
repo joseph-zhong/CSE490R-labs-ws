@@ -13,7 +13,7 @@ FEEDBACK_CONTROLLER = "feedback"
 FORWARD_CONTROLLER = "forward"
 
 PUB_CTRL_TOPIC = '/vesc/high_level/ackermann_cmd_mux/input/nav_0'
-PUB_IMG_TOPIC = '/vesc/high_level/ackermann_cmd_mux/input/nav_0'
+PUB_IMG_TOPIC = '/mask_img'
 
 SUB_TOPIC = '/camera/color/image_raw'
 
@@ -25,9 +25,9 @@ class Controller(object):
 
     self.CONTROLLER_TYPE = rospy.get_param("~controller_type", FORWARD_CONTROLLER)
     if self.CONTROLLER_TYPE == FORWARD_CONTROLLER:
-      self.controller = ForwardController(control_pub, image_pub)
+      self.controller = ForwardController(control_pub)
     elif self.CONTROLLER_TYPE == FEEDBACK_CONTROLLER:
-      self.controller = FeedbackController(control_pub)
+      self.controller = FeedbackController(control_pub, image_pub)
     else:
       assert False, "Unrecognized controller type: '{}'".format(self.CONTROLLER_TYPE)
 
