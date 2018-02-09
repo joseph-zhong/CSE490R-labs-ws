@@ -20,7 +20,7 @@ ROI_HEIGHT_LO = 10
 # HSV triplet boundaries.
 # REVIEW josephz: This needs to be tuned, consider instantiating outside this class.
 BOUNDARIES = [
-  ((90, 0, 0), (115, 255, 255))
+  ((05, 100, 100), (35, 240, 220))
 ]
 
 # Setup SimpleBlobDetector parameters.
@@ -73,13 +73,14 @@ class FeedbackController(object):
         error, image = self.img_to_error(msg)
         steering_angle = self.error_to_control(error)
         process_time = rospy.Time.now() - start
-        self.visualize(steering_angle, process_time, image)
+        #self.visualize(steering_angle, process_time, image)
         self.publish_controls(steering_angle)
 
     def img_to_error(self, msg):
         brg_img = self.cvBridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
         hsv_img = cv2.cvtColor(brg_img, cv2.COLOR_BGR2HSV)
         mask_img = self._mask_img(hsv_img)
+        self.visualize(image=mask_img)
 
 
         img_height, img_width, _ = mask_img.shape
@@ -106,6 +107,10 @@ class FeedbackController(object):
         """
         img_out = np.zeros_like(img)
         for (lower, upper) in BOUNDARIES:
+            # OpenCV expects bounds to be NumPy Arrays
+            #lower = np.array(lower, dtype="uint8")
+            #upper = np.array(upper, dtype="uint8")
+
             mask = cv2.inRange(img, lower, upper)
             cv2.bitwise_and(img, img, mask=mask, dst=img_out)
         return img_out
@@ -127,7 +132,7 @@ class FeedbackController(object):
         ads.drive.speed = SPEED
         self.control_pub.publish(ads)
 
-    def visualize(self, steering_angle, process_time, image):
+    def visualize(self, steering_angle=0, process_time=0, image=0):
         print "visualizing image"
         rosImg = self.cvBridge.cv2_to_imgmsg(image)
         self.image_pub.publish(rosImg)

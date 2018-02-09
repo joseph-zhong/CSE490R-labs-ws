@@ -10,3 +10,7 @@ class ForwardController(object):
 
   def image_cb(self, msg):
     pprint(msg)
+
+  def visulize(self):
+      pass
+
