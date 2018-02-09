@@ -10,9 +10,10 @@ import rospy
 
 # Setup Globals.
 SPEED = 0.5
-KP = 1
-KI = 1
+KP = 0.0010625
+KI = 0
 KD = 0
+MAX_ANGLE = 0.34
 
 ROI_HEIGHT_HI = 200
 ROI_HEIGHT_LO = 10
@@ -64,6 +65,7 @@ class FeedbackController(object):
             self.blobDetector = cv2.SimpleBlobDetector_create(params)
         else:
             self.blobDetector = cv2.SimpleBlobDetector(params)
+        self.img_width = None
 
     def image_cb(self, msg):
         start = rospy.Time.now()
@@ -78,7 +80,11 @@ class FeedbackController(object):
         hsv_img = cv2.cvtColor(brg_img, cv2.COLOR_BGR2HSV)
         out_img = self._mask_img(hsv_img)
 
+
         img_height, img_width, _ = out_img.shape
+        print out_img.shape
+        if self.img_width is None:
+            self.img_width = img_width
         roi_lo = ROI_HEIGHT_LO
         roi_hi = max(img_height, ROI_HEIGHT_HI)
         roi_img = out_img[roi_lo:roi_hi, :, :]
@@ -90,9 +96,9 @@ class FeedbackController(object):
         # but we could also take into account `size, and especially `angle` and `response`.
         keypoints = self.blobDetector.detect(roi_img)
         avg_x = np.average([keypoint.pt[0] for keypoint in keypoints], axis=0)
-
+        print(keypoints, avg_x)
         err = img_width / 2 - avg_x
-        return err
+        return err, None
 
     def _mask_img(self, img):
         """ Applies the boundaries to produce the mask image.
@@ -105,7 +111,10 @@ class FeedbackController(object):
 
     def error_to_control(self, error):
         delta_error = error - self.last_error
+        pprint(error)
         steering_angle = (KP * error) + (KI * self.total_error) + (KD * delta_error)
+        print("steering angle")
+        pprint(steering_angle)
         self.last_error = error
         self.total_error += error
         return steering_angle
