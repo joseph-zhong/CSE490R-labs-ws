@@ -11,16 +11,21 @@ from sensor_msgs.msg import Image
 
 FEEDBACK_CONTROLLER = "feedback"
 FORWARD_CONTROLLER = "forward"
-PUB_TOPIC = '/vesc/high_level/ackermann_cmd_mux/input/nav_0'
+
+PUB_CTRL_TOPIC = '/vesc/high_level/ackermann_cmd_mux/input/nav_0'
+PUB_IMG_TOPIC = '/vesc/high_level/ackermann_cmd_mux/input/nav_0'
+
 SUB_TOPIC = '/camera/color/image_raw'
 
 class Controller(object):
   def __init__(self):
-    control_pub = rospy.Publisher(PUB_TOPIC, AckermannDriveStamped, queue_size=1)  # Publishes the expected pose
+    # Publishes the expected pose
+    control_pub = rospy.Publisher(PUB_CTRL_TOPIC, AckermannDriveStamped, queue_size=1)
+    image_pub = rospy.Publisher(PUB_IMG_TOPIC, Image, queue_size=1)
 
     self.CONTROLLER_TYPE = rospy.get_param("~controller_type", FORWARD_CONTROLLER)
     if self.CONTROLLER_TYPE == FORWARD_CONTROLLER:
-      self.controller = ForwardController(control_pub)
+      self.controller = ForwardController(control_pub, image_pub)
     elif self.CONTROLLER_TYPE == FEEDBACK_CONTROLLER:
       self.controller = FeedbackController(control_pub)
     else:

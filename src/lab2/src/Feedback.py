@@ -53,7 +53,8 @@ def _getDefaultBlobParams():
         # DEFAULT_BLOB_PARAMS.minInertiaRatio = 0.01
 
 class FeedbackController(object):
-    def __init__(self, conrol_pub, params=_getDefaultBlobParams()):
+    def __init__(self, conrol_pub, image_pub, params=_getDefaultBlobParams()):
+        self.image_pub = image_pub
         self.control_pub = conrol_pub
         self.total_error = 0
         self.last_error = 0
@@ -76,12 +77,12 @@ class FeedbackController(object):
     def img_to_error(self, msg):
         brg_img = self.cvBridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
         hsv_img = cv2.cvtColor(brg_img, cv2.COLOR_BGR2HSV)
-        out_img = self._mask_img(hsv_img)
+        mask_img = self._mask_img(hsv_img)
 
-        img_height, img_width, _ = out_img.shape
+        img_height, img_width, _ = mask_img.shape
         roi_lo = ROI_HEIGHT_LO
         roi_hi = max(img_height, ROI_HEIGHT_HI)
-        roi_img = out_img[roi_lo:roi_hi, :, :]
+        roi_img = mask_img[roi_lo:roi_hi, :, :]
 
         # For more information on the information provided by keypoints,
         # see https://docs.opencv.org/2.4/modules/features2d/doc/common_interfaces_of_feature_detectors.html#Point2f
@@ -92,7 +93,7 @@ class FeedbackController(object):
         avg_x = np.average([keypoint.pt[0] for keypoint in keypoints], axis=0)
 
         err = img_width / 2 - avg_x
-        return err
+        return err, mask_img
 
     def _mask_img(self, img):
         """ Applies the boundaries to produce the mask image.
@@ -118,4 +119,5 @@ class FeedbackController(object):
         self.control_pub.publish(ads)
 
     def visualize(self, steering_angle, process_time, image):
-        pass
+        print "visualizing image"
+        self.image_pub.publish(image)
