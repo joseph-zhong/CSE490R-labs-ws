@@ -11,7 +11,7 @@ from util import _mask_img
 
 
 MAX_ANGLE = 0.34
-NUM_TEMPLATES = 20
+NUM_TEMPLATES = 25
 NUM_PTS = 200
 V = 0.5  # Car's current velocity
 CAR_LEN = 0.33
