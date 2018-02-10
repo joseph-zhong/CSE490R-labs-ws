@@ -20,7 +20,7 @@ boundaries = [
   ((05, 100, 100), (35, 240, 220))
 ]
 
-SLEEP_TIME = 3.0
+SLEEP_TIME = 5.0
 
 NUM_TEMPLATES = 20
 MAX_ANGLE = 0.34
@@ -54,8 +54,14 @@ def create_template(steering):
     for i in range(NUM_PTS):
         dt = 0.02
         delta_theta = V / CAR_LEN * np.sin(steering) * dt
-        delta_x = CAR_LEN / np.sin(steering) * (np.sin(theta + delta_theta) - np.sin(theta))
-        delta_y = CAR_LEN / np.sin(steering) * (np.cos(theta) - np.cos(theta + delta_theta))
+
+        # Car should go straight if the steering angle is 0.
+        if steering == 0.0:
+            delta_x = V * dt
+            delta_y = 0
+        else:
+            delta_x = CAR_LEN / np.sin(steering) * (np.sin(theta + delta_theta) - np.sin(theta))
+            delta_y = CAR_LEN / np.sin(steering) * (np.cos(theta) - np.cos(theta + delta_theta))
 
         x = delta_x + last_pos[0]
         y = delta_y + last_pos[1]
@@ -66,9 +72,7 @@ def create_template(steering):
         theta += delta_theta
         last_pos = (x, y)
 
-
     return X, Y
-
 
 
 class ForwardController(object):
@@ -78,6 +82,7 @@ class ForwardController(object):
     self.tl = tf.TransformListener()
     self.tb = tf.TransformBroadcaster()
     rospy.sleep(rospy.Duration(SLEEP_TIME))
+    self.tl.waitForTransform(CAMERA_FRAME, 'base_link', rospy.Time(), rospy.Duration(5.0))
     translation, rotation = self.tl.lookupTransform(CAMERA_FRAME, 'base_link', rospy.Time())
     x, y, z = transformations.euler_from_quaternion(rotation)
     rot_matrix = transformations.euler_matrix(x + CAMERA_ANGLE, y, z)  # I am not positive about this
@@ -129,8 +134,6 @@ class ForwardController(object):
 
 
   def image_cb(self, msg):
-
-
     brg_img = self.cvBridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
     hsv_img = cv2.cvtColor(brg_img, cv2.COLOR_BGR2HSV)
     mask_img = _mask_img(hsv_img, boundaries)
@@ -140,11 +143,14 @@ class ForwardController(object):
   def visulize(self):
       pass
 
+  def k_cb(self, msg):
+
+    print(msg)
 
 
 
 
-test = ForwardController("hello")
+#test = ForwardController("hello")
 
 
 
