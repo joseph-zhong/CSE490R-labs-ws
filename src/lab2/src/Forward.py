@@ -1,19 +1,21 @@
 #!/usr/bin/env python
 
 
+import cv2
+from cv_bridge import CvBridge, CvBridgeError
+import math
 import matplotlib.pyplot as plt
 import numpy as np
 from pprint import pprint
 
 from ackermann_msgs.msg import AckermannDriveStamped
-from cv_bridge import CvBridge, CvBridgeError
-import cv2
-from util import _mask_img
+from geometry_msgs.msg import TransformStamped
 import tf
 from tf import transformations
-from geometry_msgs.msg import TransformStamped
 import rospy
-import math
+
+from util import _mask_img
+
 
 # TODO: Change to RED
 boundaries = [
@@ -22,20 +24,13 @@ boundaries = [
 
 SLEEP_TIME = 5.0
 
-NUM_TEMPLATES = 20
-MAX_ANGLE = 0.34
+
 
 CAMERA_ANGLE = 0.0
-
 CAMERA_FRAME = 'camera_rgb_optical_frame'
-# CAMERA_FRAME = 'camera_link'
 
 
-
-
-from util import _mask_img
-
-
+### For template creation
 MAX_ANGLE = 0.34
 NUM_TEMPLATES = 25
 NUM_PTS = 200
@@ -44,6 +39,9 @@ CAR_LEN = 0.33
 
 
 def create_template(steering):
+    """ Uses the Kinematic Model to create a template using 'steering'
+        as a constant steering angle."""
+
     init_pt = (0, 0)
 
     X = []
@@ -113,24 +111,38 @@ class ForwardController(object):
     # pprint(rotation)
 
     #self.tl.setTransform(tranform)
-    # self.tb.sendTransform(translation, rotation, rospy.Time(), CAMERA_FRAME, 'camera_link')
     self.control_pub = control_pub
 
 
     templates = []
+    self.robot_frames = []
+    self.camera_frames = []
+    self.pixel_frames = None
 
     # Discretize angles, one per template.
     self.discretized_angles = np.linspace(-MAX_ANGLE, MAX_ANGLE, NUM_TEMPLATES)
-    Xs, Ys = [], []
+#    self.discretized_angles.
     for theta in self.discretized_angles:
 
         print theta
-        X, Y = create_template(theta)
-        Xs += X
-        Ys += Y
+        Xw, Yw = create_template(theta)
+        Zw = np.zeros(NUM_PTS)  # W.r.t car's frame (base link)
+        ones = np.ones(NUM_PTS)  # Addition of 1 allows rotation multiplication
 
-    template_img = plt.scatter(Xs, Ys)
-    plt.show()
+        # Convert from robot_frame to camera frame
+        robot_frame = np.array([Xw, Yw, Zw, ones])
+        camera_frame = rot_matrix.dot(robot_frame)
+        # print "ROBOT FRAME"
+        # print robot_frame
+        # print "CAMERA FRAME"
+        # print camera_frame
+        # print
+
+        self.robot_frames.append(robot_frame)
+        self.camera_frames.append(camera_frame)
+
+#    template_img = plt.scatter(Xs, Ys)
+#    plt.show()
 
 
   def image_cb(self, msg):
@@ -144,13 +156,34 @@ class ForwardController(object):
       pass
 
   def k_cb(self, msg):
+    if self.pixel_frames is None:
+        k = msg.K
+        self.pixel_frames = []
 
-    print(msg)
+        # Instantiate pixel frames from camera frames
+        for camera_frame in self.camera_frames:
+            x_prime = camera_frame[0]
+            y_prime = camera_frame[1]
+            z_prime = camera_frame[2]
 
+            # Instill camera intrinsics and convert
+            # to pixel frame
+            u = x_prime / z_prime
+            v = y_prime / z_prime
+            print u
+            print v
+            ones = np.ones(NUM_PTS)
 
+            print k
 
+            pixel_frame = np.array([u, v, ones])
+            self.pixel_frames.append(pixel_frame)
 
-#test = ForwardController("hello")
+        for pixel_frame in self.pixel_frames:
+            u = pixel_frame[0]
+            v = pixel_frame[1]
+            plt.scatter(u, v)
+            plt.show()
 
 
 
