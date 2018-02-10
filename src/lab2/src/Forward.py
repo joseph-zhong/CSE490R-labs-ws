@@ -25,9 +25,10 @@ boundaries = [
 SLEEP_TIME = 5.0
 
 
-
 CAMERA_ANGLE = 0.0
-CAMERA_FRAME = 'camera_rgb_optical_frame'
+CAMERA_FRAME_PARENT = 'camera_rgb_optical_frame'
+CAMERA_FRAME_CHILD = 'base_link'
+
 
 
 ### For template creation
@@ -80,8 +81,8 @@ class ForwardController(object):
     self.tl = tf.TransformListener()
     self.tb = tf.TransformBroadcaster()
     rospy.sleep(rospy.Duration(SLEEP_TIME))
-    self.tl.waitForTransform(CAMERA_FRAME, 'base_link', rospy.Time(), rospy.Duration(5.0))
-    translation, rotation = self.tl.lookupTransform(CAMERA_FRAME, 'base_link', rospy.Time())
+    self.tl.waitForTransform(CAMERA_FRAME_PARENT, CAMERA_FRAME_CHILD, rospy.Time(), rospy.Duration(5.0))
+    translation, rotation = self.tl.lookupTransform(CAMERA_FRAME_PARENT, CAMERA_FRAME_CHILD, rospy.Time())
     x, y, z = transformations.euler_from_quaternion(rotation)
     rot_matrix = transformations.euler_matrix(x + CAMERA_ANGLE, y, z)  # I am not positive about this
 
@@ -121,7 +122,6 @@ class ForwardController(object):
 
     # Discretize angles, one per template.
     self.discretized_angles = np.linspace(-MAX_ANGLE, MAX_ANGLE, NUM_TEMPLATES)
-#    self.discretized_angles.
     for theta in self.discretized_angles:
 
         print theta
@@ -132,17 +132,31 @@ class ForwardController(object):
         # Convert from robot_frame to camera frame
         robot_frame = np.array([Xw, Yw, Zw, ones])
         camera_frame = rot_matrix.dot(robot_frame)
-        # print "ROBOT FRAME"
-        # print robot_frame
-        # print "CAMERA FRAME"
-        # print camera_frame
-        # print
-
         self.robot_frames.append(robot_frame)
         self.camera_frames.append(camera_frame)
 
-#    template_img = plt.scatter(Xs, Ys)
-#    plt.show()
+    # Plot Robot Frames
+    Xs, Ys = np.array([]), np.array([])
+    for rf in self.robot_frames:
+       Xs = np.append(Xs, rf[0])
+       Ys = np.append(Ys, rf[1])
+
+    plt.scatter(Xs, Ys)
+    plt.show()
+
+    # Plot Camera Frames
+    Xc, Yc = np.array([]), np.array([])
+    for cf in self.camera_frames:
+       print cf
+       Xc = np.append(Xc, cf[0])
+       Yc = np.append(Yc, cf[2])
+
+    plt.scatter(Xc, Yc)
+    plt.show()
+
+
+
+
 
 
   def image_cb(self, msg):
@@ -159,6 +173,7 @@ class ForwardController(object):
     if self.pixel_frames is None:
         k = msg.K
         self.pixel_frames = []
+        K = np.array(list(k)).reshape(3, 3)
 
         # Instantiate pixel frames from camera frames
         for camera_frame in self.camera_frames:
@@ -170,20 +185,20 @@ class ForwardController(object):
             # to pixel frame
             u = x_prime / z_prime
             v = y_prime / z_prime
-            print u
-            print v
             ones = np.ones(NUM_PTS)
-
-            print k
-
             pixel_frame = np.array([u, v, ones])
+            pixel_frame = K.dot(pixel_frame)
             self.pixel_frames.append(pixel_frame)
 
+        Us = np.array([])
+        Vs = np.array([])
         for pixel_frame in self.pixel_frames:
             u = pixel_frame[0]
             v = pixel_frame[1]
-            plt.scatter(u, v)
-            plt.show()
+            Us = np.append(Us, u)
+            Vs = np.append(Vs, v)
+        plt.scatter(Us, Vs)
+        plt.show()
 
 
 
