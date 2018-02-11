@@ -30,7 +30,7 @@ class Controller(object):
 
     self.CONTROLLER_TYPE = rospy.get_param("~controller_type", FORWARD_CONTROLLER)
     if self.CONTROLLER_TYPE == FORWARD_CONTROLLER:
-      self.controller = ForwardController(control_pub, template_pub, roi_pub)
+      self.controller = ForwardController(control_pub, image_pub)
       self.k_sub = rospy.Subscriber(SUB_TOPIC_K, CameraInfo, self.controller.k_cb, queue_size=1)
     elif self.CONTROLLER_TYPE == FEEDBACK_CONTROLLER:
       self.controller = FeedbackController(control_pub, image_pub, roi_pub)

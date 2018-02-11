@@ -3,7 +3,6 @@
 import numpy as np
 import time
 
-
 # Copied from https://github.com/wiseodd/hipsternet
 # Shouldn't need to directly use this
 def _get_im2col_indices(x_shape, field_height, field_width, padding=0, stride=1):
@@ -36,7 +35,7 @@ def _im2col_indices(x, field_height, field_width, padding=0, stride=1):
   x_padded = np.pad(x, ((0, 0), (0, 0), (p, p), (p, p)), mode='constant')
 
   k, i, j = _get_im2col_indices(x.shape, field_height, field_width, padding,
-    stride)
+                               stride)
 
   cols = x_padded[:, k, i, j]
   C = x.shape[1]

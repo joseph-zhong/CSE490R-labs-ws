@@ -7,6 +7,8 @@ import math
 import matplotlib.pyplot as plt
 import numpy as np
 from pprint import pprint
+import sys
+
 
 from ackermann_msgs.msg import AckermannDriveStamped
 from geometry_msgs.msg import TransformStamped
@@ -14,6 +16,7 @@ import tf
 from tf import transformations
 import rospy
 
+from convolve import convolve
 from util import _mask_img
 
 
@@ -75,7 +78,7 @@ def create_template(steering):
 
 
 class ForwardController(object):
-  def __init__(self, control_pub, template_pub, roi_pub):
+  def __init__(self, control_pub, image_pub):
     self.cvBridge = CvBridge()
     self.tl = tf.TransformListener()
     self.tb = tf.TransformBroadcaster()
@@ -112,8 +115,7 @@ class ForwardController(object):
 
     #self.tl.setTransform(tranform)
     self.control_pub = control_pub
-    self.template_pub = template_pub
-    self.roi_pub = roi_pub
+    self.image_pub = image_pub
 
     templates = []
     self.robot_frames = []
@@ -136,27 +138,27 @@ class ForwardController(object):
         self.camera_frames.append(camera_frame)
 
     # Plot Robot Frames
-    # Xs, Ys = np.array([]), np.array([])
-    # for rf in self.robot_frames:
-    #    Xs = np.append(Xs, rf[0])
-    #    Ys = np.append(Ys, rf[1])
+#    Xs, Ys = np.array([]), np.array([])
+#    for rf in self.robot_frames:
+#       Xs = np.append(Xs, rf[0])
+#       Ys = np.append(Ys, rf[1])
 
-    # plt.scatter(Xs, Ys)
-    # plt.show()
+#    plt.scatter(Xs, Ys)
+#    plt.show()
 
     # Plot Camera Frames
-    # Xc, Yc = np.array([]), np.array([])
-    # for cf in self.camera_frames:
-    #    print cf
-    #    Xc = np.append(Xc, cf[0])
-    #    Yc = np.append(Yc, cf[2])
+#    Xc, Yc = np.array([]), np.array([])
+#    for cf in self.camera_frames:
+#       print cf
+#       Xc = np.append(Xc, cf[0])
+#       Yc = np.append(Yc, cf[2])
 
 
-    # plt.scatter(Xc, Yc)
-    # axes = plt.gca()
-    # axes.set_ylim([0, 2.0])
+#    plt.scatter(Xc, Yc)
+#    axes = plt.gca()
+#    axes.set_ylim([0, 2.0])   
 
-    # plt.show()
+#    plt.show()
 
 
   def image_cb(self, msg):
@@ -164,21 +166,26 @@ class ForwardController(object):
     hsv_img = cv2.cvtColor(brg_img, cv2.COLOR_BGR2HSV)
     mask_img = _mask_img(hsv_img, boundaries)
 
-    mask_img[mask_img != 0.0] = 1
-    print "mask_img shape:", mask_img.shape
-    # score_templates = np.apply_along_axis(lambda x: np.sum(x == mask_img), 0, self.pixel_frames)
-    print type(self.pixel_frames)
-    # best_template_idx = np.argmax(score_templates)
-    best_template_idx = 0
+    self.visualize(image=mask_img)
+    mask_img = np.rollaxis(mask_img, 2, 0)
 
-    # Templates align with the angles that created them.
-    predicted_control = self.discretized_angles[best_template_idx]
+    if self.pixel_frames is not None:
+      score_templates = []
+      print "# OF TEMPLATES:", len(self.pixel_frames)
+      for pxf in self.pixel_frames:
+        score = np.sum(convolve(pxf, mask_img))
+        score_templates.append(score)
 
-    best_template = self.pixel_frames[best_template_idx]
-    self.visualize(mask_img, best_template)
+      print "# OF SCORES", len(score_templates)
+      best_template_idx = np.argmax(score_templates)
 
-    print "{} Predicted control:{} ".format(time.time(), predicted_control)
-    self.publish_controls(predicted_control)
+      print "SCORES", score_templates
+
+      # Templates align with the angles that created them.
+      predicted_control = self.discretized_angles[best_template_idx]
+      print "CONTROL: ", predicted_control, "INDEX", best_template_idx
+ 
+      self.publish_controls(predicted_control)
 
 
   def publish_controls(self, steering_angle):
@@ -188,12 +195,11 @@ class ForwardController(object):
     self.control_pub.publish(ads)
 
 
-  def visualize(self, mask_img, template_img):
-    ros_mask_img = self.cvBridge.cv2_to_imgmsg(mask_img)
-    self.roi_pub.publish(ros_mask_img)
+  def visualize(self, steering_angle=0, image=0):
+      print "Visualizing Image:"
+      rosImg = self.cvBridge.cv2_to_imgmsg(image)
+      self.image_pub.publish(rosImg)
 
-    ros_template_img = self.cvBridge.cv2_to_imgmsg(template_img)
-    self.template_pub.publish(ros_template_img)
 
 
   def k_cb(self, msg):
@@ -219,15 +225,20 @@ class ForwardController(object):
             pixel_frame = K.dot(pixel_frame)
 
             # Invert pixel frames and crop to match perspective.
-            pixel_frame = np.flipud(pixel_frame)
-            pixel_frame = pixel_frame[0:480, 0:640]
-            self.pixel_frames.append(pixel_frame)
+            pixel_image = np.zeros((480, 640))
+            for column in pixel_frame.T:
+                # Plot the point if within image dimensions
+                u, v = column[0], column[1]
+                if u >= 0.0 and u <= 480 and v >= 0.0 and v <= 640:
+                    u = np.floor(u)
+                    v = np.floor(v)
+                    pixel_image[u][v] = 1
+
+            # plt.imshow(pixel_image, cmap='Greys')
+            # plt.show()
+            self.pixel_frames.append(pixel_image)
 
         self.pixel_frames = np.array(self.pixel_frames)
-        for i, pixel_frame in enumerate(self.pixel_frames):
-            pixel_frame[pixel_frame != 0] = 1
-            self.pixel_frames[i] = pixel_frame
-
 #        Us = np.array([])
 #        Vs = np.array([])
 #        for pixel_frame in self.pixel_frames:
