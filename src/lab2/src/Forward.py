@@ -34,7 +34,7 @@ CAMERA_FRAME_CHILD = 'base_link'
 ### For template creation
 MAX_ANGLE = 0.34
 NUM_TEMPLATES = 25
-NUM_PTS = 200
+NUM_PTS = 150
 V = 0.5  # Car's current velocity
 CAR_LEN = 0.33
 
@@ -151,7 +151,11 @@ class ForwardController(object):
        Xc = np.append(Xc, cf[0])
        Yc = np.append(Yc, cf[2])
 
+
     plt.scatter(Xc, Yc)
+    axes = plt.gca()
+    axes.set_ylim([0, 2.0])   
+
     plt.show()
 
 
@@ -197,7 +201,13 @@ class ForwardController(object):
             v = pixel_frame[1]
             Us = np.append(Us, u)
             Vs = np.append(Vs, v)
+
         plt.scatter(Us, Vs)
+        axes = plt.gca()
+        axes.set_ylim([200, 600])
+        axes.set_xlim([0, 600])
+        axes.invert_yaxis()
+
         plt.show()
 
 
