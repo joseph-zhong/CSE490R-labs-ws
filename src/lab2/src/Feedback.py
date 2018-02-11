@@ -16,6 +16,7 @@ KP = 0.0010625
 KI = 0
 KD = 0
 MAX_ANGLE = 0.34
+CENTER_OFFSET = 268
 
 ROI_HEIGHT_HI = 200
 ROI_HEIGHT_LO = 10
@@ -74,10 +75,10 @@ class FeedbackController(object):
 
   def image_cb(self, msg):
     start = rospy.Time.now()
-    error, image = self.img_to_error(msg)
+    error, image, roi_img = self.img_to_error(msg)
     steering_angle = self.error_to_control(error)
     process_time = rospy.Time.now() - start
-    #self.visualize(steering_angle, process_time, image)
+    self.visualize(steering_angle, process_time, image=image, roi_img=roi_img)
     self.publish_controls(steering_angle)
 
   def img_to_error(self, msg):
@@ -93,32 +94,31 @@ class FeedbackController(object):
     roi_hi = min(img_height, ROI_HEIGHT_HI)
     roi_img = mask_img[roi_lo:roi_hi, :, :]
 
-
-    self.visualize(image=mask_img, roi_img=roi_img)
     src = np.where(roi_img != 0)
     if len(src) == 0 or len(src[0]) == 0:
       print "ERROR MASK IS EMPTY, Cannot average nothing"
-      return 0, None
+      return 0, None, None
 
     # For more information on the information provided by keypoints,
     # see https://docs.opencv.org/2.4/modules/features2d/doc/common_interfaces_of_feature_detectors.html#Point2f
     # %20pt
     # In particular, here we are only using xy-coordinate pairs from `pt`,
     # but we could also take into account `size, and especially `angle` and `response`.
-    keypoints = self.blobDetector.detect(roi_img)
+    keypoints = self.blobDetector.detect(mask_img)
+    print "len(keypoints): '{}'".format(len(keypoints))
     max_keypoint = None
     for i, keypoint in enumerate(keypoints):
       if max_keypoint is None or keypoint.size > max_keypoint.size:
         max_keypoint = keypoint
     if max_keypoint is None:
       print "MAX_KEYPOINT IS NONE"
-      return 0
+      return 0, None, None
     print "[img_width / 2 : {}] [center of blob: {}]".format(float(img_width) / 2, max_keypoint.pt[0])
     err = float(img_width) / 2 - max_keypoint.pt[0]
 
     print "[Error: {}] [Image Shape: {}] [ROI Shape: {}] [Compute Time: {}]".format(
         err, mask_img.shape, roi_img.shape, time.time() - s_time)
-    return err, mask_img
+    return err, mask_img, roi_img
 
   def error_to_control(self, error):
     delta_error = error - self.last_error
@@ -139,10 +139,16 @@ class FeedbackController(object):
 
   def visualize(self, steering_angle=None, process_time=None, image=None, roi_img=None):
     if image is not None:
+      if steering_angle is not None:
+        cv2.putText(image, "Steering Angle: '{}'".format(steering_angle),
+            (230, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
       rosImg = self.cvBridge.cv2_to_imgmsg(image)
       self.image_pub.publish(rosImg)
 
     if roi_img is not None and self.roi_pub is not None:
+      if steering_angle is not None:
+        cv2.putText(roi_img, "Steering Angle: '{}'".format(steering_angle),
+          (230, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
       ros_roi_img = self.cvBridge.cv2_to_imgmsg(roi_img)
       self.roi_pub.publish(ros_roi_img)
 
