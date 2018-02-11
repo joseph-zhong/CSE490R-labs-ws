@@ -32,10 +32,10 @@ CAMERA_FRAME_CHILD = 'base_link'
 
 
 ### For template creation
-MAX_ANGLE = 0.34
-NUM_TEMPLATES = 25
-NUM_PTS = 150
-V = 0.5  # Car's current velocity
+MAX_ANGLE = 0.20
+NUM_TEMPLATES = 29
+NUM_PTS = 400
+V = 0.46  # Car's current velocity
 CAR_LEN = 0.33
 
 
@@ -159,15 +159,27 @@ class ForwardController(object):
     plt.show()
 
 
-
-
-
-
   def image_cb(self, msg):
     brg_img = self.cvBridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
     hsv_img = cv2.cvtColor(brg_img, cv2.COLOR_BGR2HSV)
     mask_img = _mask_img(hsv_img, boundaries)
-    #pprint(msg)
+    
+    mask_img[mask_img != 0.0] = 1
+
+    score_templates = np.apply_along_axis(lambda x: np.sum(x == mask_img), 0, self.pixel_frames)
+    best_template_idx = np.argmax(score_templates)
+
+    # Templates align with the angles that created them.
+    predicted_control = self.discretized_angles[best_template_idx]
+    
+    self.publish_controls(predicted_control)
+
+
+  def publish_controls(self, steering_angle):
+    ads = AckermannDriveStamped()
+    ads.drive.steering_angle = steering_angle
+    ads.drive.speed = V
+    self.control_pub.publish(ads)
 
 
   def visulize(self):
@@ -192,23 +204,32 @@ class ForwardController(object):
             ones = np.ones(NUM_PTS)
             pixel_frame = np.array([u, v, ones])
             pixel_frame = K.dot(pixel_frame)
+
+            # Invert pixel frames and crop to match perspective.
+            pixel_frame = np.flipud(pixel_frame)
+            pixel_frame = pixel_frame[0:480, 0:640]
             self.pixel_frames.append(pixel_frame)
 
-        Us = np.array([])
-        Vs = np.array([])
-        for pixel_frame in self.pixel_frames:
-            u = pixel_frame[0]
-            v = pixel_frame[1]
-            Us = np.append(Us, u)
-            Vs = np.append(Vs, v)
+        self.pixel_frames = np.array(self.pixel_frames)
+        for i, pixel_frame in enumerate(self.pixel_frames):
+            pixel_frame[pixel_frame != 0] = 1
+            self.pixel_frames[i] = pixel_frame
 
-        plt.scatter(Us, Vs)
-        axes = plt.gca()
-        axes.set_ylim([200, 600])
-        axes.set_xlim([0, 600])
-        axes.invert_yaxis()
+#        Us = np.array([])
+#        Vs = np.array([])
+#        for pixel_frame in self.pixel_frames:
+#           u = pixel_frame[0]
+#            v = pixel_frame[1]
+#            Us = np.append(Us, u)
+#            Vs = np.append(Vs, v)
 
-        plt.show()
+#        plt.scatter(Us, Vs)
+#        axes = plt.gca()
+#        axes.set_ylim([0, 480])
+#        axes.set_xlim([0, 640])
+#        axes.invert_yaxis()
+
+#        plt.show()
 
 
 
