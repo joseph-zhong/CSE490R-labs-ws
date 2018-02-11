@@ -11,7 +11,7 @@ import rospy
 from util import _mask_img
 
 # Setup Globals.
-SPEED = 0.5
+SPEED = 0.25
 KP = 0.0010625
 KI = 0
 KD = 0
@@ -74,14 +74,26 @@ class FeedbackController(object):
     self.img_width = None
 
   def image_cb(self, msg):
+    """
+    Receives image from camera, processes and computes error, and publishes controls.
+    """
     # start = rospy.Time.now()
     s_time = time.time()
+
+    # Process image and compute error.
     error, image, roi_img = self.img_to_error(msg)
+
+    # Compute steering angle from error.
     steering_angle = self.error_to_control(error)
     # process_time = rospy.Time.now().nsecs - start.nsecs
     process_time = time.time() - s_time
     self.visualize(steering_angle, process_time, image=image, roi_img=roi_img)
     self.publish_controls(steering_angle)
+    print
+    print "-----------"
+    print "TOTAL PIPELINE TIME: ", time.time() - s_time
+    print "-----------"
+    print
 
   def img_to_error(self, msg):
     s_time = time.time()
