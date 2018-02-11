@@ -17,8 +17,13 @@ import rospy
 from util import _mask_img
 
 
-# TODO: Change to RED
-boundaries = [
+
+blue_boundaries = [
+  ((05, 100, 100), (35, 240, 220))
+]
+
+# TODO: Get the values for RED
+red_boundaries = [
   ((05, 100, 100), (35, 240, 220))
 ]
 
@@ -162,7 +167,7 @@ class ForwardController(object):
   def image_cb(self, msg):
     brg_img = self.cvBridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
     hsv_img = cv2.cvtColor(brg_img, cv2.COLOR_BGR2HSV)
-    mask_img = _mask_img(hsv_img, boundaries)
+    mask_img = _mask_img(hsv_img, blue_boundaries)
     
     mask_img[mask_img != 0.0] = 1
 
@@ -215,15 +220,15 @@ class ForwardController(object):
             pixel_frame[pixel_frame != 0] = 1
             self.pixel_frames[i] = pixel_frame
 
-#        Us = np.array([])
-#        Vs = np.array([])
-#        for pixel_frame in self.pixel_frames:
-#           u = pixel_frame[0]
-#            v = pixel_frame[1]
-#            Us = np.append(Us, u)
-#            Vs = np.append(Vs, v)
-
-#        plt.scatter(Us, Vs)
+       # Us = np.array([])
+       # Vs = np.array([])
+       # for pixel_frame in self.pixel_frames:
+       #    u = pixel_frame[0]
+       #     v = pixel_frame[1]
+       #     Us = np.append(Us, u)
+       #     Vs = np.append(Vs, v)
+       #
+       # plt.scatter(Us, Vs)
 #        axes = plt.gca()
 #        axes.set_ylim([0, 480])
 #        axes.set_xlim([0, 640])

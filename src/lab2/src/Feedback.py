@@ -105,22 +105,22 @@ class FeedbackController(object):
 
     def error_to_control(self, error):
         delta_error = error - self.last_error
-        pprint(error)
+        #pprint(error)
         steering_angle = (KP * error) + (KI * self.total_error) + (KD * delta_error)
-        print("steering angle")
-        pprint(steering_angle)
+        #print("steering angle")
+        #pprint(steering_angle)
         self.last_error = error
         self.total_error += error
         return steering_angle
 
     def publish_controls(self, steering_angle):
-        print("moving")
+        #print("moving")
         ads = AckermannDriveStamped()
         ads.drive.steering_angle = steering_angle
         ads.drive.speed = SPEED
         self.control_pub.publish(ads)
 
     def visualize(self, steering_angle=0, process_time=0, image=0):
-        print "visualizing image"
+        #print "visualizing image"
         rosImg = self.cvBridge.cv2_to_imgmsg(image)
         self.image_pub.publish(rosImg)
