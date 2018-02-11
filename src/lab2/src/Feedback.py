@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import cv2
+import time
 import numpy as np
 from pprint import pprint
 
@@ -21,7 +22,7 @@ ROI_HEIGHT_LO = 10
 # HSV triplet boundaries.
 # REVIEW josephz: This needs to be tuned, consider instantiating outside this class.
 boundaries = [
-  ((05, 100, 100), (35, 240, 220))
+  ((5, 100, 100), (35, 240, 220))
 ]
 
 # Setup SimpleBlobDetector parameters.
@@ -55,11 +56,13 @@ def _getDefaultBlobParams():
         # DEFAULT_BLOB_PARAMS.minInertiaRatio = 0.01
 
 class FeedbackController(object):
-    def __init__(self, conrol_pub, image_pub, params=_getDefaultBlobParams()):
+    def __init__(self, conrol_pub, image_pub, roi_pub=None, params=_getDefaultBlobParams()):
         self.image_pub = image_pub
         self.control_pub = conrol_pub
         self.total_error = 0
         self.last_error = 0
+
+        self.roi_pub = roi_pub
 
         self.cvBridge = CvBridge()
         # REVIEW josephz: Verify version OpenCV 3.x on the robots.
@@ -78,29 +81,42 @@ class FeedbackController(object):
         self.publish_controls(steering_angle)
 
     def img_to_error(self, msg):
+        s_time = time.time()
         brg_img = self.cvBridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
         hsv_img = cv2.cvtColor(brg_img, cv2.COLOR_BGR2HSV)
         mask_img = _mask_img(hsv_img, boundaries)
-        self.visualize(image=mask_img)
-
 
         img_height, img_width, _ = mask_img.shape
-        print "Image Shape:", mask_img.shape
         if self.img_width is None:
             self.img_width = img_width
         roi_lo = ROI_HEIGHT_LO
-        roi_hi = max(img_height, ROI_HEIGHT_HI)
+        roi_hi = min(img_height, ROI_HEIGHT_HI)
         roi_img = mask_img[roi_lo:roi_hi, :, :]
+
+
+        self.visualize(image=mask_img, roi_img=roi_img)
+        src = np.where(roi_img != 0)
+        if len(src[0]) == 0:
+            print "ERROR MASK IS EMPTY, Cannot average nothing"
+            return 0, None
+        avg_x = np.average(src, axis=0)[1]
 
         # For more information on the information provided by keypoints,
         # see https://docs.opencv.org/2.4/modules/features2d/doc/common_interfaces_of_feature_detectors.html#Point2f
         # %20pt
         # In particular, here we are only using xy-coordinate pairs from `pt`,
         # but we could also take into account `size, and especially `angle` and `response`.
-        keypoints = self.blobDetector.detect(roi_img)
-        avg_x = np.average([keypoint.pt[0] for keypoint in keypoints], axis=0)
-        print(keypoints, avg_x)
-        err = img_width / 2 - avg_x
+        # keypoints = self.blobDetector.detect(roi_img)
+        # avg_x = np.average([keypoint.pt[0] for keypoint in keypoints], axis=0)
+        # print(keypoints, avg_x)
+
+        print "[img_width / 2 : {}] [avg_x: {}]".format(float(img_width) / 2, avg_x)
+
+        err = float(img_width) / 2 - avg_x
+        # err = 0
+
+        print "[Error: {}] [Image Shape: {}] [ROI Shape: {}] [Compute Time: {}]".format(
+                err, mask_img.shape, roi_img.shape, time.time() - s_time)
         return err, mask_img
 
     def error_to_control(self, error):
@@ -120,7 +136,13 @@ class FeedbackController(object):
         ads.drive.speed = SPEED
         self.control_pub.publish(ads)
 
-    def visualize(self, steering_angle=0, process_time=0, image=0):
-        print "visualizing image"
-        rosImg = self.cvBridge.cv2_to_imgmsg(image)
-        self.image_pub.publish(rosImg)
+    def visualize(self, steering_angle=None, process_time=None, image=None, roi_img=None):
+        if image is not None:
+            rosImg = self.cvBridge.cv2_to_imgmsg(image)
+            self.image_pub.publish(rosImg)
+
+        if roi_img is not None and self.roi_pub is not None:
+            ros_roi_img = self.cvBridge.cv2_to_imgmsg(roi_img)
+            self.roi_pub.publish(ros_roi_img)
+
+
