@@ -192,7 +192,7 @@ class ForwardController(object):
     ros_mask_img = self.cvBridge.cv2_to_imgmsg(mask_img)
     self.roi_pub.publish(ros_mask_img)
 
-    ros_template_img = self.cvBrideg.cv2_to_imgmsg(template_img)
+    ros_template_img = self.cvBridge.cv2_to_imgmsg(template_img)
     self.template_pub.publish(ros_template_img)
 
 
