@@ -1,6 +1,6 @@
 
 <launch>
-    <arg name="controller_type" default="forward" />
+    <arg name="controller_type" default="feedback" />
     <node pkg="lab2" type="Controller.py" name="Controller" output="screen">
         <param name="controller_type" value="$(arg controller_type)"/>
     </node>
