@@ -17,7 +17,7 @@ from tf import transformations
 import rospy
 
 from convolve import convolve
-from util import _mask_img
+from util import *
 
 
 # TODO: Change to RED
@@ -33,53 +33,52 @@ CAMERA_FRAME_PARENT = 'camera_rgb_optical_frame'
 CAMERA_FRAME_CHILD = 'base_link'
 
 
-
 ### For template creation
-MAX_ANGLE = 0.20
-NUM_TEMPLATES = 29
-NUM_PTS = 400
+MAX_ANGLE = 0.34
+NUM_TEMPLATES = 20
+NUM_PTS = 150
 V = 0.46  # Car's current velocity
 CAR_LEN = 0.33
 
 
 def create_template(steering):
-    """ Uses the Kinematic Model to create a template using 'steering'
-        as a constant steering angle."""
+  """ Uses the Kinematic Model to create a template using 'steering'
+    as a constant steering angle."""
 
-    init_pt = (0, 0)
+  init_pt = (0, 0)
 
-    X = []
-    Y = []
+  X = []
+  Y = []
 
-    last_pos = (0, 0)
-    theta = 0
-    for i in range(NUM_PTS):
-        dt = 0.02
-        delta_theta = V / CAR_LEN * np.sin(steering) * dt
+  last_pos = (0, 0)
+  theta = 0
+  for i in range(NUM_PTS):
+    dt = 0.02
+    delta_theta = V / CAR_LEN * np.sin(steering) * dt
 
-        # Car should go straight if the steering angle is 0.
-        if steering == 0.0:
-            delta_x = V * dt
-            delta_y = 0
-        else:
-            delta_x = CAR_LEN / np.sin(steering) * (np.sin(theta + delta_theta) - np.sin(theta))
-            delta_y = CAR_LEN / np.sin(steering) * (np.cos(theta) - np.cos(theta + delta_theta))
+    # Car should go straight if the steering angle is 0.
+    if steering == 0.0:
+      delta_x = V * dt
+      delta_y = 0
+    else:
+      delta_x = CAR_LEN / np.sin(steering) * (np.sin(theta + delta_theta) - np.sin(theta))
+      delta_y = CAR_LEN / np.sin(steering) * (np.cos(theta) - np.cos(theta + delta_theta))
 
-        x = delta_x + last_pos[0]
-        y = delta_y + last_pos[1]
+    x = delta_x + last_pos[0]
+    y = delta_y + last_pos[1]
 
-        X.append(x)
-        Y.append(y)
+    X.append(x)
+    Y.append(y)
 
-        theta += delta_theta
-        last_pos = (x, y)
+    theta += delta_theta
+    last_pos = (x, y)
 
-    return X, Y
+  return X, Y
 
 
 class ForwardController(object):
 
-  def __init__(self, control_pub, image_pub):
+  def __init__(self, control_pub, image_pub, params=_getDefaultBlobParams()):
     self.cvBridge = CvBridge()
     self.tl = tf.TransformListener()
     self.tb = tf.TransformBroadcaster()
@@ -89,32 +88,13 @@ class ForwardController(object):
     x, y, z = transformations.euler_from_quaternion(rotation)
     rot_matrix = transformations.euler_matrix(x + CAMERA_ANGLE, y, z)  # I am not positive about this
 
+
+    # Calculate rotation matrix and translation vector
     translation = list(translation) + [1]
     rot_matrix[:, -1] = translation
     rot_matrix = np.array(rot_matrix)
     print(rot_matrix)
 
-    # tranform = TransformStamped()
-    # tranform.transform.rotation.x = rotation[0]
-    # tranform.transform.rotation.y = rotation[1]
-    # tranform.transform.rotation.z = rotation[2]
-    # tranform.transform.rotation.w = rotation[3]
-    # tranform.transform.translation.x = translation[0]
-    # tranform.transform.translation.y = translation[1]
-    # tranform.transform.translation.z = translation[2]
-    # tranform.header.frame_id = 'base_link'
-    # tranform.child_frame_id = 'my_frame'
-    # new_rotation = transformations.euler_from_quaternion(rotation)
-    # new_rotation[0] += math.pi
-    # new_rotation = tuple(new_rotation)
-    # x, y, z = new_rotation
-    # x += 0.1
-    # translation[0] += 0
-    # new_rotation = transformations.quaternion_from_euler(x, y, z)
-    # pprint((x, y, z))
-    # pprint(rotation)
-
-    #self.tl.setTransform(tranform)
     self.control_pub = control_pub
     self.image_pub = image_pub
 
@@ -122,44 +102,57 @@ class ForwardController(object):
     self.robot_frames = []
     self.camera_frames = []
     self.pixel_frames = None
+    self.point_frames = None
+
+    # Flag to prevent callback from accessing non-existent frames
+    self.preprocessed = False
+
+    # Last Control for continual publishing when the robot gets lost.
+    self.control = None
 
     # Discretize angles, one per template.
     self.discretized_angles = np.linspace(-MAX_ANGLE, MAX_ANGLE, NUM_TEMPLATES)
     for theta in self.discretized_angles:
 
-        print theta
-        Xw, Yw = create_template(theta)
-        Zw = np.zeros(NUM_PTS)  # W.r.t car's frame (base link)
-        ones = np.ones(NUM_PTS)  # Addition of 1 allows rotation multiplication
+      print theta
+      Xw, Yw = create_template(theta)
+      Zw = np.zeros(NUM_PTS)  # W.r.t car's frame (base link)
+      ones = np.ones(NUM_PTS)  # Addition of 1 allows rotation multiplication
 
-        # Convert from robot_frame to camera frame
-        robot_frame = np.array([Xw, Yw, Zw, ones])
-        camera_frame = rot_matrix.dot(robot_frame)
-        self.robot_frames.append(robot_frame)
-        self.camera_frames.append(camera_frame)
+      # Convert from robot_frame to camera frame
+      robot_frame = np.array([Xw, Yw, Zw, ones])
+      camera_frame = rot_matrix.dot(robot_frame)
+      self.robot_frames.append(robot_frame)
+      self.camera_frames.append(camera_frame)
 
     # Plot Robot Frames
-#    Xs, Ys = np.array([]), np.array([])
-#    for rf in self.robot_frames:
-#       Xs = np.append(Xs, rf[0])
-#       Ys = np.append(Ys, rf[1])
+    Xs, Ys = np.array([]), np.array([])
+    for rf in self.robot_frames:
+      Xs = np.append(Xs, rf[0])
+      Ys = np.append(Ys, rf[1])
 
-#    plt.scatter(Xs, Ys)
-#    plt.show()
+    plt.scatter(Xs, Ys)
+    plt.show()
 
-    # Plot Camera Frames
-#    Xc, Yc = np.array([]), np.array([])
-#    for cf in self.camera_frames:
-#       print cf
-#       Xc = np.append(Xc, cf[0])
-#       Yc = np.append(Yc, cf[2])
+   # Plot Camera Frames
+    Xc, Yc = np.array([]), np.array([])
+    for cf in self.camera_frames:
+      print cf
+      Xc = np.append(Xc, cf[0])
+      Yc = np.append(Yc, cf[2])
 
 
-#    plt.scatter(Xc, Yc)
-#    axes = plt.gca()
-#    axes.set_ylim([0, 2.0])   
+    plt.scatter(Xc, Yc)
+    axes = plt.gca()
+    axes.set_ylim([0, 2.0])   
 
-#    plt.show()
+    plt.show()
+
+    # Blob parameters
+    if cv2.__version__.startswith("3."):
+      self.blobDetector = cv2.SimpleBlobDetector_create(params)
+    else:
+      self.blobDetector = cv2.SimpleBlobDetector(params)
 
 
   def image_cb(self, msg):
@@ -168,23 +161,30 @@ class ForwardController(object):
     mask_img = _mask_img(hsv_img, boundaries)
 
     self.visualize(image=mask_img)
-    mask_img = np.rollaxis(mask_img, 2, 0)
 
-    if self.pixel_frames is not None:
-      score_templates = []
-      print "# OF TEMPLATES:", len(self.pixel_frames)
-      for pxf in self.pixel_frames:
-        score = np.sum(convolve(pxf, mask_img))
-        score_templates.append(score)
+    if self.preprocessed:
 
-      print "# OF SCORES", len(score_templates)
-      best_template_idx = np.argmax(score_templates)
+      # Compute blobs.
+      keypoints = self.blobDetector.detect(mask_img)
+      max_keypoint = None
+      for i, keypoint in enumerate(keypoints):
+        if max_keypoint is None or keypoint.size > max_keypoint.size:
+          max_keypoint = keypoint
 
-      print "SCORES", score_templates
+      if max_keypoint is None: 
+        if self.control is not None:
+          self.publish_controls(self.control)
+      else:
+        return
+
+      x, y = max_keypoint.pt[0], max_keypoint.pt[1]
+
+      distances = np.abs(self.point_frames - x)
+      min_dist_idx = np.argmin(distances)
 
       # Templates align with the angles that created them.
-      predicted_control = self.discretized_angles[best_template_idx]
-      print "CONTROL: ", predicted_control, "INDEX", best_template_idx
+      predicted_control = self.discretized_angles[min_dist_idx]
+      print "CONTROL: ", predicted_control, "INDEX", min_dist_idx
  
       self.publish_controls(predicted_control)
 
@@ -197,62 +197,58 @@ class ForwardController(object):
 
 
   def visualize(self, steering_angle=0, image=0):
-      print "Visualizing Image:"
-      rosImg = self.cvBridge.cv2_to_imgmsg(image)
-      self.image_pub.publish(rosImg)
-
+    # Visualize an image to the object's given image_pub topic.
+    rosImg = self.cvBridge.cv2_to_imgmsg(image)
+    self.image_pub.publish(rosImg)
 
 
   def k_cb(self, msg):
     if self.pixel_frames is None:
-        k = msg.K
-        self.pixel_frames = []
-        K = np.array(list(k)).reshape(3, 3)
+      k = msg.K
+      self.pixel_frames = []
+      self.point_frames = []
 
-        # Instantiate pixel frames from camera frames
-        for camera_frame in self.camera_frames:
-            x_prime = camera_frame[0]
-            y_prime = camera_frame[1]
-            z_prime = camera_frame[2]
+      K = np.array(list(k)).reshape(3, 3)
 
-            # Instill camera intrinsics and convert
-            # to pixel frame
-            u = x_prime / z_prime
-            v = y_prime / z_prime
-            ones = np.ones(NUM_PTS)
-            pixel_frame = np.array([u, v, ones])
-            pixel_frame = K.dot(pixel_frame)
+      U, V = [], []
+      # Instantiate pixel frames from camera frames
+      for i, camera_frame in enumerate(self.camera_frames):
+        x_prime = camera_frame[0]
+        y_prime = camera_frame[1]
+        z_prime = camera_frame[2]
 
-            # Invert pixel frames and crop to match perspective.
-            pixel_image = np.zeros((480, 640))
-            for column in pixel_frame.T:
-                # Plot the point if within image dimensions
-                u, v = column[0], column[1]
-                if u >= 0.0 and u <= 480 and v >= 0.0 and v <= 640:
-                    u = np.floor(u)
-                    v = np.floor(v)
-                    pixel_image[u][v] = 1
+        # Instill camera intrinsics and convert
+        # to pixel frame
+        u = x_prime / z_prime
+        v = y_prime / z_prime
+        ones = np.ones(NUM_PTS)
+        pixel_frame = np.array([u, v, ones])
+        pixel_frame = K.dot(pixel_frame)
 
-            # plt.imshow(pixel_image, cmap='Greys')
-            # plt.show()
-            self.pixel_frames.append(pixel_image)
+        self.pixel_frames.append(pixel_frame)
 
-        self.pixel_frames = np.array(self.pixel_frames)
-#        Us = np.array([])
-#        Vs = np.array([])
-#        for pixel_frame in self.pixel_frames:
-#           u = pixel_frame[0]
-#            v = pixel_frame[1]
-#            Us = np.append(Us, u)
-#            Vs = np.append(Vs, v)
+      # Take the last points here
+      Us = np.array([])
+      Vs = np.array([])
+      for pixel_frame in self.pixel_frames:
+        u = pixel_frame[0]
+        v = pixel_frame[1]
+        Us = np.append(Us, u)
+        Vs = np.append(Vs, v)
 
-#        plt.scatter(Us, Vs)
-#        axes = plt.gca()
-#        axes.set_ylim([0, 480])
-#        axes.set_xlim([0, 640])
-#        axes.invert_yaxis()
+        # Collect pointwise templates
+        u_f = u[-1]
+        v_f = v[-1]
+        self.point_frames.append(u_f)
 
-#        plt.show()
+      plt.scatter(Us, Vs)
+      axes = plt.gca()
+      axes.set_ylim([0, 480])
+      axes.set_xlim([0, 640])
+      axes.invert_yaxis()
 
+      plt.show()
+
+      self.point_frames = np.array(self.point_frames)
 
 
