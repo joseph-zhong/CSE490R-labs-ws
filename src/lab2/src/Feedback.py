@@ -74,10 +74,12 @@ class FeedbackController(object):
     self.img_width = None
 
   def image_cb(self, msg):
-    start = rospy.Time.now()
+    # start = rospy.Time.now()
+    s_time = time.time()
     error, image, roi_img = self.img_to_error(msg)
     steering_angle = self.error_to_control(error)
-    process_time = rospy.Time.now() - start
+    # process_time = rospy.Time.now().nsecs - start.nsecs
+    process_time = time.time() - s_time
     self.visualize(steering_angle, process_time, image=image, roi_img=roi_img)
     self.publish_controls(steering_angle)
 
@@ -97,7 +99,7 @@ class FeedbackController(object):
     src = np.where(roi_img != 0)
     if len(src) == 0 or len(src[0]) == 0:
       print "ERROR MASK IS EMPTY, Cannot average nothing"
-      return 0, None, None
+      return self.last_error, None, None
 
     # For more information on the information provided by keypoints,
     # see https://docs.opencv.org/2.4/modules/features2d/doc/common_interfaces_of_feature_detectors.html#Point2f
@@ -112,7 +114,7 @@ class FeedbackController(object):
         max_keypoint = keypoint
     if max_keypoint is None:
       print "MAX_KEYPOINT IS NONE"
-      return 0, None, None
+      return self.last_error, None, None
     print "[img_width / 2 : {}] [center of blob: {}]".format(float(img_width) / 2, max_keypoint.pt[0])
     err = CENTER_OFFSET - max_keypoint.pt[0]
 
@@ -141,7 +143,10 @@ class FeedbackController(object):
     if image is not None:
       if steering_angle is not None:
         cv2.putText(image, "Steering Angle: '{}'".format(steering_angle),
-            (230, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
+            (230, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2, cv2.LINE_AA)
+      if process_time is not None:
+        cv2.putText(image, "Processing Time: '{}'".format(process_time),
+            (230, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2, cv2.LINE_AA)
       rosImg = self.cvBridge.cv2_to_imgmsg(image)
       self.image_pub.publish(rosImg)
 
@@ -149,6 +154,9 @@ class FeedbackController(object):
       if steering_angle is not None:
         cv2.putText(roi_img, "Steering Angle: '{}'".format(steering_angle),
           (230, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
+      if process_time is not None:
+        cv2.putText(roi_img, "Processing Time: '{}'".format(process_time),
+            (230, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
       ros_roi_img = self.cvBridge.cv2_to_imgmsg(roi_img)
       self.roi_pub.publish(ros_roi_img)
 
