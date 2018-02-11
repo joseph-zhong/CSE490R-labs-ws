@@ -114,7 +114,7 @@ class FeedbackController(object):
       print "MAX_KEYPOINT IS NONE"
       return 0, None, None
     print "[img_width / 2 : {}] [center of blob: {}]".format(float(img_width) / 2, max_keypoint.pt[0])
-    err = float(img_width) / 2 - max_keypoint.pt[0]
+    err = CENTER_OFFSET - max_keypoint.pt[0]
 
     print "[Error: {}] [Image Shape: {}] [ROI Shape: {}] [Compute Time: {}]".format(
         err, mask_img.shape, roi_img.shape, time.time() - s_time)
