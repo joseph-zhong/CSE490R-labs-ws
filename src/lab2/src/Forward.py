@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-
+import time
 import cv2
 from cv_bridge import CvBridge, CvBridgeError
 import math
@@ -75,8 +75,7 @@ def create_template(steering):
 
 
 class ForwardController(object):
-
-  def __init__(self, control_pub):
+  def __init__(self, control_pub, template_pub, roi_pub):
     self.cvBridge = CvBridge()
     self.tl = tf.TransformListener()
     self.tb = tf.TransformBroadcaster()
@@ -113,7 +112,8 @@ class ForwardController(object):
 
     #self.tl.setTransform(tranform)
     self.control_pub = control_pub
-
+    self.template_pub = template_pub
+    self.roi_pub = roi_pub
 
     templates = []
     self.robot_frames = []
@@ -136,42 +136,48 @@ class ForwardController(object):
         self.camera_frames.append(camera_frame)
 
     # Plot Robot Frames
-    Xs, Ys = np.array([]), np.array([])
-    for rf in self.robot_frames:
-       Xs = np.append(Xs, rf[0])
-       Ys = np.append(Ys, rf[1])
+    # Xs, Ys = np.array([]), np.array([])
+    # for rf in self.robot_frames:
+    #    Xs = np.append(Xs, rf[0])
+    #    Ys = np.append(Ys, rf[1])
 
-    plt.scatter(Xs, Ys)
-    plt.show()
+    # plt.scatter(Xs, Ys)
+    # plt.show()
 
     # Plot Camera Frames
-    Xc, Yc = np.array([]), np.array([])
-    for cf in self.camera_frames:
-       print cf
-       Xc = np.append(Xc, cf[0])
-       Yc = np.append(Yc, cf[2])
+    # Xc, Yc = np.array([]), np.array([])
+    # for cf in self.camera_frames:
+    #    print cf
+    #    Xc = np.append(Xc, cf[0])
+    #    Yc = np.append(Yc, cf[2])
 
 
-    plt.scatter(Xc, Yc)
-    axes = plt.gca()
-    axes.set_ylim([0, 2.0])   
+    # plt.scatter(Xc, Yc)
+    # axes = plt.gca()
+    # axes.set_ylim([0, 2.0])
 
-    plt.show()
+    # plt.show()
 
 
   def image_cb(self, msg):
     brg_img = self.cvBridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
     hsv_img = cv2.cvtColor(brg_img, cv2.COLOR_BGR2HSV)
     mask_img = _mask_img(hsv_img, boundaries)
-    
-    mask_img[mask_img != 0.0] = 1
 
-    score_templates = np.apply_along_axis(lambda x: np.sum(x == mask_img), 0, self.pixel_frames)
-    best_template_idx = np.argmax(score_templates)
+    mask_img[mask_img != 0.0] = 1
+    print "mask_img shape:", mask_img.shape
+    # score_templates = np.apply_along_axis(lambda x: np.sum(x == mask_img), 0, self.pixel_frames)
+    print type(self.pixel_frames)
+    # best_template_idx = np.argmax(score_templates)
+    best_template_idx = 0
 
     # Templates align with the angles that created them.
     predicted_control = self.discretized_angles[best_template_idx]
-    
+
+    best_template = self.pixel_frames[best_template_idx]
+    self.visualize(mask_img, best_template)
+
+    print "{} Predicted control:{} ".format(time.time(), predicted_control)
     self.publish_controls(predicted_control)
 
 
@@ -182,11 +188,18 @@ class ForwardController(object):
     self.control_pub.publish(ads)
 
 
-  def visulize(self):
-      pass
+  def visualize(self, mask_img, template_img):
+    ros_mask_img = self.cvBridge.cv2_to_imgmsg(mask_img)
+    self.roi_pub.publish(ros_mask_img)
+
+    ros_template_img = self.cvBrideg.cv2_to_imgmsg(template_img)
+    self.template_pub.publish(ros_template_img)
+
 
   def k_cb(self, msg):
+    print "CALLING K CALL BACK"
     if self.pixel_frames is None:
+
         k = msg.K
         self.pixel_frames = []
         K = np.array(list(k)).reshape(3, 3)
