@@ -8,7 +8,7 @@ from pprint import pprint
 from cv_bridge import CvBridge, CvBridgeError
 from ackermann_msgs.msg import AckermannDriveStamped
 import rospy
-from util import _mask_img
+from util import _mask_img, _getDefaultBlobParams, DEFAULT_BLOB_PARAMS
 
 # Setup Globals.
 SPEED = 0.25
@@ -26,36 +26,6 @@ boundaries = [
   ((5, 100, 100), (35, 240, 220))
 ]
 
-# Setup SimpleBlobDetector parameters.
-DEFAULT_BLOB_PARAMS = None
-def _getDefaultBlobParams():
-  """ Caches default global blob detector params. """
-  global DEFAULT_BLOB_PARAMS
-  if DEFAULT_BLOB_PARAMS is not None:
-    return DEFAULT_BLOB_PARAMS
-  else:
-    DEFAULT_BLOB_PARAMS = cv2.SimpleBlobDetector_Params()
-
-    # Change thresholds
-    DEFAULT_BLOB_PARAMS.minThreshold = 10
-    DEFAULT_BLOB_PARAMS.maxThreshold = 100
-
-    # Filter by Area.
-    # DEFAULT_BLOB_PARAMS.filterByArea = True
-    # DEFAULT_BLOB_PARAMS.minArea = 100
-
-    # Filter by Circularity
-    # DEFAULT_BLOB_PARAMS.filterByCircularity = True
-    # DEFAULT_BLOB_PARAMS.minCircularity = 0.1
-
-    # Filter by Convexity
-    # DEFAULT_BLOB_PARAMS.filterByConvexity = True
-    # DEFAULT_BLOB_PARAMS.minConvexity = 0.87
-
-    # Filter by Inertia
-    # DEFAULT_BLOB_PARAMS.filterByInertia = True
-    # DEFAULT_BLOB_PARAMS.minInertiaRatio = 0.01
-
 class FeedbackController(object):
   def __init__(self, conrol_pub, image_pub, roi_pub=None, params=_getDefaultBlobParams()):
     self.image_pub = image_pub
@@ -66,6 +36,8 @@ class FeedbackController(object):
     self.roi_pub = roi_pub
 
     self.cvBridge = CvBridge()
+
+
     # REVIEW josephz: Verify version OpenCV 3.x on the robots.
     if cv2.__version__.startswith("3."):
       self.blobDetector = cv2.SimpleBlobDetector_create(params)
@@ -103,14 +75,16 @@ class FeedbackController(object):
     img_height, img_width, _ = mask_img.shape
     if self.img_width is None:
       self.img_width = img_width
+
+    # create the cropped image
     roi_lo = ROI_HEIGHT_LO
     roi_hi = min(img_height, ROI_HEIGHT_HI)
     roi_img = mask_img[roi_lo:roi_hi, :, :]
-
     src = np.where(roi_img != 0)
     if len(src) == 0 or len(src[0]) == 0:
       print "ERROR MASK IS EMPTY, Cannot average nothing"
       return self.last_error, None, None, None
+
 
     # For more information on the information provided by keypoints,
     # see https://docs.opencv.org/2.4/modules/features2d/doc/common_interfaces_of_feature_detectors.html#Point2f
