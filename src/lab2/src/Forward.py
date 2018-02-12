@@ -170,8 +170,6 @@ class ForwardController(object):
 
       mask_img = _mask_img(hsv_img, red_boundaries)
 
-      #self.visualize(image=mask_img)
-
       # Compute blobs.
       keypoints = self.blobDetector.detect(mask_img)
       max_keypoint = None
@@ -181,6 +179,7 @@ class ForwardController(object):
 
       if max_keypoint is not None:
         x, y = max_keypoint.pt[0], max_keypoint.pt[1]
+        self.visualize(mask_img, x, y)
 
         distances = np.abs(self.point_frames - x)
         min_dist_idx = np.argmin(distances)
@@ -201,10 +200,14 @@ class ForwardController(object):
     self.control_pub.publish(ads)
 
 
-  def visualize(self, steering_angle=0, image=0):
+  def visualize(self, image, x, y):
     # Visualize an image to the object's given image_pub topic.
-    rosImg = self.cvBridge.cv2_to_imgmsg(image)
-    self.image_pub.publish(rosImg)
+    if image is not None:
+
+      if y is not None and x is not None:
+        cv2.circle(image, (x, y), 15, (0, 255, 0), 3, cv2.LINE_AA)
+      rosImg = self.cvBridge.cv2_to_imgmsg(image)
+      self.image_pub.publish(rosImg)
 
 
   def k_cb(self, msg):
@@ -247,11 +250,11 @@ class ForwardController(object):
         v_f = v[-1]
         self.point_frames.append(u_f)
 
-      plt.scatter(Us, Vs)
-      axes = plt.gca()
-      axes.set_ylim([0, 480])
-      axes.set_xlim([0, 640])
-      axes.invert_yaxis()
+      # plt.scatter(Us, Vs)
+      # axes = plt.gca()
+      # axes.set_ylim([0, 480])
+      # axes.set_xlim([0, 640])
+      # axes.invert_yaxis()
 
       plt.show()
 
