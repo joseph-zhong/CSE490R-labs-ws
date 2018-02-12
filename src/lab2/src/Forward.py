@@ -40,10 +40,27 @@ CAMERA_FRAME_CHILD = 'base_link'
 
 ### For template creation
 MAX_ANGLE = 0.34
-NUM_TEMPLATES = 20
+NUM_TEMPLATES = 50
 NUM_PTS = 150
 V = 0.46  # Car's current velocity
 CAR_LEN = 0.33
+IMG_MEDIAN = 268
+
+
+def average_pt(img):
+  rolled_img = np.rollaxis(img, 2, 0)
+  rolled_sum = rolled_img[0] + rolled_img[1] + rolled_img[2]
+  Y, X = np.where(rolled_sum > 0)
+
+  if len(Y) <= 10:
+    return None, None
+
+  X_avg = np.sum(X) / len(X)
+  Y_avg = np.sum(Y) / len(Y)
+
+  X_avg = (X_avg - IMG_MEDIAN) * 3 + IMG_MEDIAN
+
+  return X_avg, Y_avg
 
 
 def create_template(steering):
@@ -56,7 +73,7 @@ def create_template(steering):
   last_pos = (0, 0)
   theta = 0
   for i in range(NUM_PTS):
-    dt = 0.02
+    dt = 0.015
     delta_theta = V / CAR_LEN * np.sin(steering) * dt
 
     # Car should go straight if the steering angle is 0.
@@ -153,10 +170,10 @@ class ForwardController(object):
 
 
     # Blob parameters
-    if cv2.__version__.startswith("3."):
-      self.blobDetector = cv2.SimpleBlobDetector_create(params)
-    else:
-      self.blobDetector = cv2.SimpleBlobDetector(params)
+    # if cv2.__version__.startswith("3."):
+      # self.blobDetector = cv2.SimpleBlobDetector_create(params)
+    # else:
+      # self.blobDetector = cv2.SimpleBlobDetector(params)
 
 
   def image_cb(self, msg):
@@ -168,19 +185,21 @@ class ForwardController(object):
       hsv_img = cv2.cvtColor(brg_img, cv2.COLOR_BGR2HSV)
 
       mask_img = _mask_img(hsv_img, red_boundaries)
-      mask_img = cv2.GaussianBlur(mask_img, (5,5), 5)
-      #self.visualize(mask_img, 0,0,0)
-      # Compute blobs.
-      keypoints = self.blobDetector.detect(mask_img)
-      #self.visualize_key_points(mask_img, keypoints)
-      print keypoints
-      max_keypoint = None
-      for i, keypoint in enumerate(keypoints):
-        if max_keypoint is None or (keypoint.pt[1] < max_keypoint.pt[1] or abs(keypoint.pt[0] - 268) > abs(max_keypoint.pt[0] - 268)):
-          max_keypoint = keypoint
 
-      if max_keypoint is not None:
-        x, y = max_keypoint.pt[0], max_keypoint.pt[1]
+      # mask_img = cv2.GaussianBlur(mask_img, (5,5), 5)
+      # self.visualize(mask_img, 0,0,0)
+      # Compute blobs.
+      # keypoints = self.blobDetector.detect(mask_img)
+      # self.visualize_key_points(mask_img, keypoints)
+      # print keypoints
+      # max_keypoint = None
+      # for i, keypoint in enumerate(keypoints):
+        # if max_keypoint is None or (keypoint.pt[1] < max_keypoint.pt[1] or abs(keypoint.pt[0] - 268) > abs(max_keypoint.pt[0] - 268)):
+         # max_keypoint = keypoint
+
+      x, y = average_pt(mask_img)
+      if x is not None and y is not None:
+        # x, y = max_keypoint.pt[0], max_keypoint.pt[1]
 
         distances = np.abs(self.point_frames - x)
         min_dist_idx = np.argmin(distances)
