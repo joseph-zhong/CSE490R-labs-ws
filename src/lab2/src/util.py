@@ -3,6 +3,7 @@
 import cv2
 from cv_bridge import CvBridge, CvBridgeError
 import numpy as np
+from pprint import pprint
 
 
 def _mask_img(img, boundaries):
@@ -22,17 +23,38 @@ def _mask_img(img, boundaries):
 # Setup SimpleBlobDetector parameters.
 DEFAULT_BLOB_PARAMS = None
 
-def _getDefaultBlobParams():
+def _getDefaultBlobParams_red():
   """ Caches default global blob detector params. """
   global DEFAULT_BLOB_PARAMS
-  if DEFAULT_BLOB_PARAMS is not None:
-    return DEFAULT_BLOB_PARAMS
-  else:
+
+  if DEFAULT_BLOB_PARAMS is None:
+    print("Using custom blob params")
     DEFAULT_BLOB_PARAMS = cv2.SimpleBlobDetector_Params()
 
     # Change thresholds
     DEFAULT_BLOB_PARAMS.minThreshold = 10
-    DEFAULT_BLOB_PARAMS.maxThreshold = 10
+    DEFAULT_BLOB_PARAMS.maxThreshold = 255
+
+  DEFAULT_BLOB_PARAMS.filterByCircularity = False
+  DEFAULT_BLOB_PARAMS.filterByConvexity = False
+  DEFAULT_BLOB_PARAMS.filterByArea = False
+  DEFAULT_BLOB_PARAMS.filterByColor = False
+  DEFAULT_BLOB_PARAMS.filterByInertia = False
+  return DEFAULT_BLOB_PARAMS
+
+def _getDefaultBlobParams_blue():
+  """ Caches default global blob detector params. """
+  global DEFAULT_BLOB_PARAMS
+
+  if DEFAULT_BLOB_PARAMS is None:
+    print("Using custom blob params")
+    DEFAULT_BLOB_PARAMS = cv2.SimpleBlobDetector_Params()
+
+    # Change thresholds
+    DEFAULT_BLOB_PARAMS.minThreshold = 10
+    DEFAULT_BLOB_PARAMS.maxThreshold = 255
+
+  return DEFAULT_BLOB_PARAMS
 
 def get_blob_key_points():
   pass

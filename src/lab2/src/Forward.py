@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pprint import pprint
 import sys
+import time
 
 
 from ackermann_msgs.msg import AckermannDriveStamped
@@ -16,17 +17,17 @@ import tf
 from tf import transformations
 import rospy
 
-from util import _mask_img, _getDefaultBlobParams, DEFAULT_BLOB_PARAMS
+from util import _mask_img, _getDefaultBlobParams_red, DEFAULT_BLOB_PARAMS
 
 
 
 blue_boundaries = [
-  ((05, 100, 100), (35, 240, 220))
+  ((22, 180, 150), (30, 255, 200))
 ]
 
 # TODO: Get the values for RED
 red_boundaries = [
-  ((05, 100, 100), (35, 240, 220))
+  ((122, 235, 110), (129, 255, 200))
 ]
 
 SLEEP_TIME = 5.0
@@ -48,8 +49,6 @@ CAR_LEN = 0.33
 def create_template(steering):
   """ Uses the Kinematic Model to create a template using 'steering'
     as a constant steering angle."""
-
-  init_pt = (0, 0)
 
   X = []
   Y = []
@@ -82,7 +81,7 @@ def create_template(steering):
 
 class ForwardController(object):
 
-  def __init__(self, control_pub, image_pub, params=_getDefaultBlobParams()):
+  def __init__(self, control_pub, image_pub, params=_getDefaultBlobParams_red()):
     self.cvBridge = CvBridge()
     self.tl = tf.TransformListener()
     self.tb = tf.TransformBroadcaster()
@@ -162,33 +161,39 @@ class ForwardController(object):
 
   def image_cb(self, msg):
     if self.preprocessed:
-
+      start = time.time()
       predicted_control = self.control #None at the start
 
       brg_img = self.cvBridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
       hsv_img = cv2.cvtColor(brg_img, cv2.COLOR_BGR2HSV)
 
       mask_img = _mask_img(hsv_img, red_boundaries)
-
+      mask_img = cv2.GaussianBlur(mask_img, (5,5), 5)
+      #self.visualize(mask_img, 0,0,0)
       # Compute blobs.
       keypoints = self.blobDetector.detect(mask_img)
+      #self.visualize_key_points(mask_img, keypoints)
+      print keypoints
       max_keypoint = None
       for i, keypoint in enumerate(keypoints):
-        if max_keypoint is None or keypoint.size > max_keypoint.size:
+        if max_keypoint is None or (keypoint.pt[1] < max_keypoint.pt[1] or abs(keypoint.pt[0] - 268) > abs(max_keypoint.pt[0] - 268)):
           max_keypoint = keypoint
 
       if max_keypoint is not None:
         x, y = max_keypoint.pt[0], max_keypoint.pt[1]
-        self.visualize(mask_img, x, y)
 
         distances = np.abs(self.point_frames - x)
         min_dist_idx = np.argmin(distances)
 
+        x_p = self.point_frames[min_dist_idx]
+        self.visualize(mask_img, x_p, x, y)
+
+
         # Templates align with the angles that created them.
         predicted_control = self.discretized_angles[min_dist_idx]
         self.control = predicted_control
-        print "CONTROL: ", predicted_control, "INDEX", min_dist_idx
 
+      print "CONTROL: ", predicted_control, "TIME", time.time() - start
       if predicted_control is not None:
         self.publish_controls(predicted_control)
 
@@ -200,15 +205,25 @@ class ForwardController(object):
     self.control_pub.publish(ads)
 
 
-  def visualize(self, image, x, y):
+  def visualize(self, image,x_p, x, y):
     # Visualize an image to the object's given image_pub topic.
     if image is not None:
-
       if y is not None and x is not None:
+        x = int(x)
+        y = int(y)
+        x_p = int(x_p)
         cv2.circle(image, (x, y), 15, (0, 255, 0), 3, cv2.LINE_AA)
+        cv2.circle(image, (x_p, y), 15, (255, 0, 0), 3, cv2.LINE_AA)
       rosImg = self.cvBridge.cv2_to_imgmsg(image)
       self.image_pub.publish(rosImg)
 
+  def visualize_key_points(self, img, key_points):
+    for key_point in key_points:
+      x = int(key_point.pt[0])
+      y = int(key_point.pt[1])
+      cv2.circle(img, (x, y), 15, (0, 255, 0), 3, cv2.LINE_AA)
+    rosImg = self.cvBridge.cv2_to_imgmsg(img)
+    self.image_pub.publish(rosImg)
 
   def k_cb(self, msg):
     if not self.preprocessed:
