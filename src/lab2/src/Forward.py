@@ -107,6 +107,7 @@ def _getDefaultBlobParams():
     DEFAULT_BLOB_PARAMS.minThreshold = 10
     DEFAULT_BLOB_PARAMS.maxThreshold = 100
 
+class ForwardController(object):
   def __init__(self, control_pub, image_pub, params=_getDefaultBlobParams_red()):
     self.cvBridge = CvBridge()
     self.tl = tf.TransformListener()
