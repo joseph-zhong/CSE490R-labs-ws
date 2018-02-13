@@ -103,7 +103,7 @@ class ForwardController(object):
     translation = list(translation) + [1]
     rot_matrix[:, -1] = translation
     rot_matrix = np.array(rot_matrix)
-    print(rot_matrix)
+    # print(rot_matrix)
 
     #self.tl.setTransform(tranform)
     self.control_pub = control_pub
@@ -119,16 +119,16 @@ class ForwardController(object):
     self.discretized_angles = np.linspace(-MAX_ANGLE, MAX_ANGLE, NUM_TEMPLATES)
     for theta in self.discretized_angles:
 
-        # print theta
-        Xw, Yw = create_template(theta)
-        Zw = np.zeros(NUM_PTS)  # W.r.t car's frame (base link)
-        ones = np.ones(NUM_PTS)  # Addition of 1 allows rotation multiplication
+      # print theta
+      Xw, Yw = create_template(theta)
+      Zw = np.zeros(NUM_PTS)  # W.r.t car's frame (base link)
+      ones = np.ones(NUM_PTS)  # Addition of 1 allows rotation multiplication
 
-        # Convert from robot_frame to camera frame
-        robot_frame = np.array([Xw, Yw, Zw, ones])
-        camera_frame = rot_matrix.dot(robot_frame)
-        self.robot_frames.append(robot_frame)
-        self.camera_frames.append(camera_frame)
+      # Convert from robot_frame to camera frame
+      robot_frame = np.array([Xw, Yw, Zw, ones])
+      camera_frame = rot_matrix.dot(robot_frame)
+      self.robot_frames.append(robot_frame)
+      self.camera_frames.append(camera_frame)
 
     # Blob detector for template matching.
     # REVIEW josephz: Verify version OpenCV 3.x on the robots.
@@ -178,8 +178,8 @@ class ForwardController(object):
 
       # Compute blobs.
       keypoints = self.blobDetector.detect(mask_img)
-      print len(keypoints)
-      # assert False
+      #self.visualize_key_points(mask_img, keypoints)
+      # print keypoints
       max_keypoint = None
       for i, keypoint in enumerate(keypoints):
         # print keypoint

@@ -81,13 +81,14 @@ class FeedbackController(object):
     s_time = time.time()
 
     # Process image and compute error.
-    error, image, roi_img = self.img_to_error(msg)
-
+    error, image, roi_img, y = self.img_to_error(msg)
+    # print "The error we are getting is", error
     # Compute steering angle from error.
     steering_angle = self.error_to_control(error)
     # process_time = rospy.Time.now().nsecs - start.nsecs
     process_time = time.time() - s_time
-    self.visualize(steering_angle, process_time, image=image, roi_img=roi_img)
+    #self.visualize(steering_angle, process_time, image=image, roi_img=roi_img, y=y, error=error)
+    print "TIME", time.time() - s_time
     self.publish_controls(steering_angle)
     print
     print "-----------"
@@ -101,7 +102,9 @@ class FeedbackController(object):
     hsv_img = cv2.cvtColor(brg_img, cv2.COLOR_BGR2HSV)
     mask_img = _mask_img(hsv_img, boundaries)
 
+    # print "The shape of the mask image is", mask_img.shape
     img_height, img_width, _ = mask_img.shape
+    # print "The image height is ", img_height, "and the image width is ", img_width
     if self.img_width is None:
       self.img_width = img_width
     roi_lo = ROI_HEIGHT_LO
@@ -118,8 +121,10 @@ class FeedbackController(object):
     # %20pt
     # In particular, here we are only using xy-coordinate pairs from `pt`,
     # but we could also take into account `size, and especially `angle` and `response`.
-    keypoints = self.blobDetector.detect(mask_img)
-    print "len(keypoints): '{}'".format(len(keypoints))
+    keypoints = self.blobDetector.detect(roi_img)
+    self.visualize_key_points(roi_img, keypoints)
+
+    # print "len(keypoints): '{}'".format(len(keypoints))
     max_keypoint = None
     for i, keypoint in enumerate(keypoints):
       if max_keypoint is None or keypoint.size > max_keypoint.size:
@@ -130,22 +135,22 @@ class FeedbackController(object):
     print "[img_width / 2 : {}] [center of blob: {}]".format(float(img_width) / 2, max_keypoint.pt[0])
     err = CENTER_OFFSET - max_keypoint.pt[0]
 
-    print "[Error: {}] [Image Shape: {}] [ROI Shape: {}] [Compute Time: {}]".format(
-        err, mask_img.shape, roi_img.shape, time.time() - s_time)
-    return err, mask_img, roi_img
+    # print "[Error: {}] [Image Shape: {}] [ROI Shape: {}]".format(
+    #     err, mask_img.shape, roi_img.shape)
+    return err, mask_img, roi_img, y
 
   def error_to_control(self, error):
     delta_error = error - self.last_error
-    pprint(error)
+    # pprint(error)
     steering_angle = (KP * error) + (KI * self.total_error) + (KD * delta_error)
-    print("steering angle")
-    pprint(steering_angle)
+    # print("steering angle")
+    # pprint(steering_angle)
     self.last_error = error
     self.total_error += error
     return steering_angle
 
   def publish_controls(self, steering_angle):
-    print("moving")
+    # print("moving")
     ads = AckermannDriveStamped()
     ads.drive.steering_angle = steering_angle
     ads.drive.speed = SPEED
