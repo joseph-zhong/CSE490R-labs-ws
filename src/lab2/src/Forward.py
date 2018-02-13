@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import time
+
 import cv2
 from cv_bridge import CvBridge, CvBridgeError
 import math
@@ -93,21 +93,9 @@ def create_template(steering):
 
   return X, Y
 
-# Setup SimpleBlobDetector parameters.
-DEFAULT_BLOB_PARAMS = None
-def _getDefaultBlobParams():
-  """ Caches default global blob detector params. """
-  global DEFAULT_BLOB_PARAMS
-  if DEFAULT_BLOB_PARAMS is not None:
-    return DEFAULT_BLOB_PARAMS
-  else:
-    DEFAULT_BLOB_PARAMS = cv2.SimpleBlobDetector_Params()
-
-    # Change thresholds
-    DEFAULT_BLOB_PARAMS.minThreshold = 10
-    DEFAULT_BLOB_PARAMS.maxThreshold = 100
 
 class ForwardController(object):
+
   def __init__(self, control_pub, image_pub, params=_getDefaultBlobParams_red()):
     self.cvBridge = CvBridge()
     self.tl = tf.TransformListener()
@@ -317,7 +305,6 @@ class ForwardController(object):
 
       rosImg = self.cvBridge.cv2_to_imgmsg(template_img)
       self.template_pub.publish(rosImg)
-
 
 
 
