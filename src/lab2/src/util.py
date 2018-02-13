@@ -51,7 +51,7 @@ def _getDefaultBlobParams_blue():
     DEFAULT_BLOB_PARAMS = cv2.SimpleBlobDetector_Params()
 
     # Change thresholds
-    DEFAULT_BLOB_PARAMS.minThreshold = 10
+    DEFAULT_BLOB_PARAMS.minThreshold = 200
     DEFAULT_BLOB_PARAMS.maxThreshold = 255
 
   return DEFAULT_BLOB_PARAMS

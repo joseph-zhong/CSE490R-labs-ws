@@ -11,7 +11,7 @@ import rospy
 from util import _mask_img, _getDefaultBlobParams_blue, DEFAULT_BLOB_PARAMS
 
 # Setup Globals.
-SPEED = 0.45
+SPEED = 0.4
 KP = 0.0010625
 KI = 0
 KD = 0
@@ -20,7 +20,7 @@ CENTER_OFFSET = 268
 
 #ROI_HEIGHT_HI = 600
 #ROI_HEIGHT_LO = 400
-ROI_THICKNESS = 150
+ROI_THICKNESS = 180
 # HSV triplet boundaries.
 # REVIEW josephz: This needs to be tuned, consider instantiating outside this class.
 blue_boundaries = [
@@ -51,43 +51,42 @@ class FeedbackController(object):
     Receives image from camera, processes and computes error, and publishes controls.
     """
     # start = rospy.Time.now()
-    s_time = time.time()
+    ss_time = s_time = time.time()
 
     # Process image and compute error.
+
     error, image, roi_img, y = self.img_to_error(msg)
-    print "The error we are getting is", error
+    print time.time() - s_time
+    s_time = time.time()
+    # print "The error we are getting is", error
     # Compute steering angle from error.
     steering_angle = self.error_to_control(error)
-    # process_time = rospy.Time.now().nsecs - start.nsecs
-    process_time = time.time() - s_time
+    print time.time() - s_time
     #self.visualize(steering_angle, process_time, image=image, roi_img=roi_img, y=y, error=error)
+    print "TOTAL PIPELINE TIME: ", time.time() - ss_time
     self.publish_controls(steering_angle)
-    # print
-    # print "-----------"
-    # print "TOTAL PIPELINE TIME: ", time.time() - s_time
-    # print "-----------"
-    # print
 
   def img_to_error(self, msg):
-    brg_img = self.cvBridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
-    hsv_img = cv2.cvtColor(brg_img, cv2.COLOR_BGR2HSV)
-    mask_img = _mask_img(hsv_img, blue_boundaries)
+    bgr_img = self.cvBridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
 
-    print "The shape of the mask image is", mask_img.shape
-    img_height, img_width, _ = mask_img.shape
-    print "The image height is ", img_height, "and the image width is ", img_width
+    # create the cropped image
+    # print "The shape of the mask image is", bgr_img.shape
+    img_height, img_width, _ = bgr_img.shape
+    # print "The image height is ", img_height, "and the image width is ", img_width
     if self.img_width is None:
       self.img_width = img_width
 
-    # create the cropped image
     roi_hi = img_height
     roi_lo = img_height - ROI_THICKNESS
-    roi_img = mask_img[roi_lo:roi_hi, :, :]
+    crop = bgr_img[roi_lo:roi_hi,:,:]
+    hsv_img = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+    mask_img = _mask_img(hsv_img, blue_boundaries)
+
+    roi_img = mask_img
     src = np.where(roi_img != 0)
     if len(src) == 0 or len(src[0]) == 0:
       print "ERROR MASK IS EMPTY, Cannot average nothing"
       return self.last_error, None, None, None
-
 
     # For more information on the information provided by keypoints,
     # see https://docs.opencv.org/2.4/modules/features2d/doc/common_interfaces_of_feature_detectors.html#Point2f
@@ -97,7 +96,7 @@ class FeedbackController(object):
     keypoints = self.blobDetector.detect(roi_img)
     self.visualize_key_points(roi_img, keypoints)
 
-    print "len(keypoints): '{}'".format(len(keypoints))
+    # print "len(keypoints): '{}'".format(len(keypoints))
     max_keypoint = None
     for i, keypoint in enumerate(keypoints):
       if max_keypoint is None or keypoint.size > max_keypoint.size:
@@ -108,16 +107,17 @@ class FeedbackController(object):
     err = CENTER_OFFSET - max_keypoint.pt[0]
     y = max_keypoint.pt[1]
 
-    print "[Error: {}] [Image Shape: {}] [ROI Shape: {}]".format(
-        err, mask_img.shape, roi_img.shape)
-    return err, mask_img, roi_img, y
+    # print "[Error: {}] [Image Shape: {}] [ROI Shape: {}]".format(
+    #     err, mask_img.shape, roi_img.shape)
+    # return err, mask_img, roi_img, y
+    return err, None, roi_img, y
 
   def error_to_control(self, error):
     delta_error = error - self.last_error
-    pprint(error)
+    # pprint(error)
     steering_angle = (KP * error) + (KI * self.total_error) + (KD * delta_error)
-    print("steering angle")
-    pprint(steering_angle)
+    # print("steering angle")
+    # pprint(steering_angle)
     self.last_error = error
     self.total_error += error
     return steering_angle
@@ -155,10 +155,20 @@ class FeedbackController(object):
       # self.image_pub.publish(ros_roi_img)
 
   def visualize_key_points(self, img, key_points):
-    for key_point in key_points:
-      x = int(key_point.pt[0])
-      y = int(key_point.pt[1])
+    # for key_point in key_points:
+    #   x = int(key_point.pt[0])
+    #   y = int(key_point.pt[1])
+
+    # Visualize Max Point
+    max_keypoint = None
+    for i, keypoint in enumerate(key_points):
+      if max_keypoint is None or keypoint.size > max_keypoint.size:
+        max_keypoint = keypoint
+    if max_keypoint is not None:
+      x, y = max_keypoint.pt
+      x, y = int(x), int(y)
       cv2.circle(img, (x, y), 15, (255, 0, 0), 3, cv2.LINE_AA)
+
     rosImg = self.cvBridge.cv2_to_imgmsg(img)
     self.image_pub.publish(rosImg)
 
