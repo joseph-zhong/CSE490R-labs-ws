@@ -15,6 +15,7 @@ from ackermann_msgs.msg import AckermannDriveStamped
 from geometry_msgs.msg import TransformStamped
 import tf
 from tf import transformations
+from sensor_msgs.msg import Image
 import rospy
 
 from util import _mask_img, _getDefaultBlobParams_red, DEFAULT_BLOB_PARAMS
@@ -25,21 +26,18 @@ blue_boundaries = [
   ((22, 180, 150), (30, 255, 200))
 ]
 
-# TODO: Get the values for RED
 red_boundaries = [
   ((122, 235, 110), (129, 255, 200))
 ]
 
 SLEEP_TIME = 5.0
 
-
 CAMERA_ANGLE = 0.0
 CAMERA_FRAME_PARENT = 'camera_rgb_optical_frame'
 CAMERA_FRAME_CHILD = 'base_link'
 
-
-### For template creation
-MAX_ANGLE = 0.34
+# For template creation
+MAX_ANGLE = 0.40
 NUM_TEMPLATES = 50
 NUM_PTS = 150
 V = 0.46  # Car's current velocity
@@ -104,12 +102,15 @@ class ForwardController(object):
     self.tb = tf.TransformBroadcaster()
     rospy.sleep(rospy.Duration(SLEEP_TIME))
     self.tl.waitForTransform(CAMERA_FRAME_PARENT, CAMERA_FRAME_CHILD, rospy.Time(), rospy.Duration(5.0))
-    translation, rotation = self.tl.lookupTransform(CAMERA_FRAME_PARENT, CAMERA_FRAME_CHILD, rospy.Time())
-    x, y, z = transformations.euler_from_quaternion(rotation)
-    rot_matrix = transformations.euler_matrix(x + CAMERA_ANGLE, y, z)  # I am not positive about this
 
 
     # Calculate rotation matrix and translation vector
+    translation, rotation = self.tl.lookupTransform(CAMERA_FRAME_PARENT, CAMERA_FRAME_CHILD, rospy.Time())
+    # x, y, z = transformations.euler_from_quaternion(rotation)
+    # rot_matrix = transformations.euler_matrix(x + CAMERA_ANGLE, y, z)
+
+    rot_matrix = transformations.quaternion_matrix(rotation)
+
     translation = list(translation) + [1]
     rot_matrix[:, -1] = translation
     rot_matrix = np.array(rot_matrix)
@@ -118,11 +119,16 @@ class ForwardController(object):
     self.control_pub = control_pub
     self.image_pub = image_pub
 
+    # For collecting template data
+    template_topic = '/forward_templates'
+    self.template_pub = rospy.Publisher(template_topic, Image, queue_size=1)
+
     templates = []
     self.robot_frames = []
     self.camera_frames = []
     self.pixel_frames = None
     self.point_frames = None
+    self.point_frames_heights = None  # For plotting templates for writeup.
 
     # Flag to prevent callback from accessing non-existent frames
     self.preprocessed = False
@@ -179,7 +185,7 @@ class ForwardController(object):
   def image_cb(self, msg):
     if self.preprocessed:
       start = time.time()
-      predicted_control = self.control #None at the start
+      predicted_control = self.control  # None at the start
 
       brg_img = self.cvBridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
       hsv_img = cv2.cvtColor(brg_img, cv2.COLOR_BGR2HSV)
@@ -206,7 +212,6 @@ class ForwardController(object):
 
         x_p = self.point_frames[min_dist_idx]
         self.visualize(mask_img, x_p, x, y)
-
 
         # Templates align with the angles that created them.
         predicted_control = self.discretized_angles[min_dist_idx]
@@ -236,6 +241,7 @@ class ForwardController(object):
       rosImg = self.cvBridge.cv2_to_imgmsg(image)
       self.image_pub.publish(rosImg)
 
+
   def visualize_key_points(self, img, key_points):
     for key_point in key_points:
       x = int(key_point.pt[0])
@@ -244,16 +250,18 @@ class ForwardController(object):
     rosImg = self.cvBridge.cv2_to_imgmsg(img)
     self.image_pub.publish(rosImg)
 
+
   def k_cb(self, msg):
+
     if not self.preprocessed:
 
       k = msg.K
       self.pixel_frames = []
       self.point_frames = []
+      self.point_frames_heights = []
 
       K = np.array(list(k)).reshape(3, 3)
 
-      U, V = [], []
       # Instantiate pixel frames from camera frames
       for i, camera_frame in enumerate(self.camera_frames):
         x_prime = camera_frame[0]
@@ -283,16 +291,21 @@ class ForwardController(object):
         u_f = u[-1]
         v_f = v[-1]
         self.point_frames.append(u_f)
-
-      # plt.scatter(Us, Vs)
-      # axes = plt.gca()
-      # axes.set_ylim([0, 480])
-      # axes.set_xlim([0, 640])
-      # axes.invert_yaxis()
-
-      plt.show()
+        self.point_frames_heights.append(v_f)
 
       self.point_frames = np.array(self.point_frames)
-      self.preprocessed = True
+      self.preprocessed = True  # Callback will now utilize frames
+
+
+    if self.preprocessed:
+      # Publish templates for documentation
+      template_img = np.zeros((480, 640, 3), dtype=np.uint8)
+      for i, x in enumerate(self.point_frames):
+        cv2.circle(template_img, (int(x), int(self.point_frames_heights[i])), 15, (0, 255, 0), 3, cv2.LINE_AA)
+
+      rosImg = self.cvBridge.cv2_to_imgmsg(template_img)
+      self.template_pub.publish(rosImg)
+
+
 
 
