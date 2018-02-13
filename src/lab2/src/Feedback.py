@@ -11,7 +11,7 @@ import rospy
 from util import _mask_img, _getDefaultBlobParams_blue, DEFAULT_BLOB_PARAMS
 
 # Setup Globals.
-SPEED = 0.25
+SPEED = 0.45
 KP = 0.0010625
 KI = 0
 KD = 0
