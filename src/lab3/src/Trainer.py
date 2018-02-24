@@ -12,6 +12,9 @@ import torch
 import torch.utils.data
 from torch.autograd import Variable
 
+from model import MotionModel
+
+
 SPEED_TO_ERPM_OFFSET     = 0.0
 SPEED_TO_ERPM_GAIN       = 4614.0
 STEERING_TO_SERVO_OFFSET = 0.5304
@@ -98,14 +101,39 @@ raw_datas = raw_datas[ np.abs(raw_datas[:,4]) < 0.36 ] # discard bad controls
 x_datas = np.zeros( (raw_datas.shape[0], INPUT_SIZE) )
 y_datas = np.zeros( (raw_datas.shape[0], OUTPUT_SIZE) )
 
+
 dt = np.diff(raw_datas[:,5])
+
+# I. Create dot poses; estimations based on taking the difference between
+#    contiguous examples:
+for i in range(1, len(raw_datas)):  # Iterate across columns
+    r_t = raw_datas[i]
+    r_prev = raw_datas[i - 1]
+    x_dot, y_dot, theta_dot,  = r_t[0:3] - r_prev[0:3]
+
+    theta, v, delta, _ = r_t[2:]
+
+
+    # Create x_dot and y_dot
+    x = [x_dot, y_dot, theta_dot, np.sin(theta), np.cos(theta), v, delta, dt[i]]
+    x_datas[i, :] = x
+
+    y = [x_dot, y_dot, theta_dot]
+    y_datas[i - 1, :] = y
+
+
 
 # TODO
 # It is critical we properly handle theta-rollover: 
 # as -pi < theta < pi, theta_dot can be > pi, so we have to handle those
 # cases to keep theta_dot also between -pi and pi
-gt = pose_dot[:,2] > np.pi
-pose_dot[gt,2] = pose_dot[gt,2] - 2*np.pi
+# (originally  named 'pose_dot')
+gt_x = x_datas[:,2] > np.pi
+x_datas[gt_x,2] = x_datas[gt_x,2] - 2*np.pi
+
+gt_y = y_datas[:,2] > np.pi
+y_datas[gt_y,2] = y_datas[gt_y,2] - 2*np.pi
+
 
 # TODO
 # Some raw values from sensors / particle filter may be noisy. It is safe to
@@ -152,6 +180,7 @@ y_val = torch.from_numpy(y_tt.astype('float32')).type(dtype)
 # specify your neural network (or other) model here.
 # model = torch
 
+model = MotionModel(D_in, H, H, D_out)
 loss_fn = torch.nn.MSELoss(size_average=False)
 learning_rate = 1e-3
 opt = torch.optim.Adam(model.parameters(), lr=1e-3) #learning_rate)
