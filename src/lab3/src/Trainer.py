@@ -115,7 +115,7 @@ for i in range(1, len(raw_datas)):  # Iterate across columns
 
 
     # Create x_dot and y_dot
-    x = [x_dot, y_dot, theta_dot, np.sin(theta), np.cos(theta), v, delta, dt[i]]
+    x = [x_dot, y_dot, theta_dot, np.sin(theta), np.cos(theta), v, delta, dt[i - 1]]
     x_datas[i, :] = x
 
     y = [x_dot, y_dot, theta_dot]
@@ -199,6 +199,10 @@ def doTraining(model, filename, optimizer, N=5000):
         optimizer.step()      # take a gradient step for model's parameters
 
     torch.save(model, filename)
+
+if len(sys.argv > 2):
+    doTraining(model, sys.argv[2], opt)
+
 
 # The following are functions meant for debugging and sanity checking your
 # model. You should use these and / or design your own testing tools.
