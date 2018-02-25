@@ -105,7 +105,7 @@ x_dot = np.diff(raw_datas[:, 0])
 y_dot = np.diff(raw_datas[:, 1])
 theta_dot = np.diff(raw_datas[:, 2])
 
-# Start from 1st column
+# Start from 1st column to align with (x_t - x_{t - 1})
 sin_theta = np.sin(raw_datas[:, 2][1:])
 cos_theta = np.cos(raw_datas[:, 2][1:])
 
@@ -114,29 +114,11 @@ delta = raw_datas[:, 4][1:]
 dt = np.diff(raw_datas[:,5])
 
 # Set x, y values
-x_datas = np.array([ x_dot, y_dot, theta_dot, sin_theta, cos_theta, v, delta, dt ]).transpose()
-y_datas = np.array([ x_dot, y_dot, theta_dot ]).transpose()
+x_datas = np.array([ x_dot[:-1], y_dot[:-1], theta_dot[:-1], sin_theta[:-1], cos_theta[:-1], v[:-1], delta[:-1], dt[:-1] ]).transpose()
+y_datas = np.array([ x_dot[1:], y_dot[1:], theta_dot[1:] ]).transpose()
 
 print x_datas.shape, (raw_datas.shape[0], INPUT_SIZE)
 print y_datas.shape, (raw_datas.shape[0], OUTPUT_SIZE)
-
-# I. Create dot poses; estimations based on taking the difference between
-#    contiguous examples:
-# for i in range(1, len(raw_datas)):  # Iterate across columns
-#    r_t = raw_datas[i]
-#    r_prev = raw_datas[i - 1]
-#    x_dot, y_dot, theta_dot,  = r_t[0:3] - r_prev[0:3]
-
-#    theta, v, delta, _ = r_t[2:]
-
-
-    # Create x_dot and y_dot
-#    x = [x_dot, y_dot, theta_dot, np.sin(theta), np.cos(theta), v, delta, dt[i - 1]]
-#    x_datas[i, :] = x
-
-#    y = [x_dot, y_dot, theta_dot]
-#    y_datas[i - 1, :] = y
-
 
 
 # TODO
@@ -144,11 +126,21 @@ print y_datas.shape, (raw_datas.shape[0], OUTPUT_SIZE)
 # as -pi < theta < pi, theta_dot can be > pi, so we have to handle those
 # cases to keep theta_dot also between -pi and pi
 # (originally  named 'pose_dot')
+
+# Handle positive pi cases
 gt_x = x_datas[:,2] > np.pi
-x_datas[gt_x,2] = x_datas[gt_x,2] - 2*np.pi
+x_datas[gt_x, 2] = x_datas[gt_x, 2] - 2*np.pi
 
 gt_y = y_datas[:,2] > np.pi
-y_datas[gt_y,2] = y_datas[gt_y,2] - 2*np.pi
+y_datas[gt_y, 2] = y_datas[gt_y, 2] - 2*np.pi
+
+# Handle negative pi cases
+gt_x = x_datas[:,2] < -np.pi
+x_datas[gt_x, 2] = x_datas[gt_x, 2] + 2*np.pi
+
+gt_y = y_datas[:,2] < -np.pi
+y_datas[gt_y, 2] = y_datas[gt_y, 2] + 2*np.pi
+
 
 
 # TODO
@@ -188,7 +180,7 @@ print("y Tdot", np.min(y_datas[:,2]), np.max(y_datas[:,2]))
 ######### NN stuff
 # dtype = torch.cuda.FloatTensor
 dtype = torch.FloatTensor  # For CPU training / dev.
-D_in, H, D_out = INPUT_SIZE, 32, OUTPUT_SIZE
+D_in, H, D_out = INPUT_SIZE, 64, OUTPUT_SIZE
 
 # Make validation set
 num_samples = x_datas.shape[0]
@@ -231,7 +223,7 @@ def doTraining(model, filename, optimizer, N=5000):
     torch.save(model, filename)
 
 if len(sys.argv) > 2:
-    doTraining(model, sys.argv[2], opt)
+    doTraining(model, sys.argv[2], opt, N=10000)
 
 
 # The following are functions meant for debugging and sanity checking your
@@ -255,10 +247,10 @@ def rollout(m, nn_input, N):
         nn_input[2] = out.data[2]
         nn_input[3] = pose[2]
         print(pose.cpu().numpy())
- 
+
 def test_model(m, N, dt = 0.1):
     cos, v, st = 4, 5, 6
-    s = INPUT_SIZE 
+    s = INPUT_SIZE
     print("Nothing")
     nn_input = torch.zeros(s).cuda()
     nn_input[cos] = 1.0
