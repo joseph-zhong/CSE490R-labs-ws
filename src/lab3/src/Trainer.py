@@ -101,25 +101,41 @@ raw_datas = raw_datas[ np.abs(raw_datas[:,4]) < 0.36 ] # discard bad controls
 x_datas = np.zeros( (raw_datas.shape[0], INPUT_SIZE) )
 y_datas = np.zeros( (raw_datas.shape[0], OUTPUT_SIZE) )
 
+x_dot = np.diff(raw_datas[:, 0])
+y_dot = np.diff(raw_datas[:, 1])
+theta_dot = np.diff(raw_datas[:, 2])
 
+# Start from 1st column
+sin_theta = np.sin(raw_datas[:, 2][1:])
+cos_theta = np.cos(raw_datas[:, 2][1:])
+
+v = raw_datas[:, 3][1:]
+delta = raw_datas[:, 4][1:]
 dt = np.diff(raw_datas[:,5])
+
+# Set x, y values
+x_datas = np.array([ x_dot, y_dot, theta_dot, sin_theta, cos_theta, v, delta, dt ]).transpose()
+y_datas = np.array([ x_dot, y_dot, theta_dot ]).transpose()
+
+print x_datas.shape, (raw_datas.shape[0], INPUT_SIZE)
+print y_datas.shape, (raw_datas.shape[0], OUTPUT_SIZE)
 
 # I. Create dot poses; estimations based on taking the difference between
 #    contiguous examples:
-for i in range(1, len(raw_datas)):  # Iterate across columns
-    r_t = raw_datas[i]
-    r_prev = raw_datas[i - 1]
-    x_dot, y_dot, theta_dot,  = r_t[0:3] - r_prev[0:3]
+# for i in range(1, len(raw_datas)):  # Iterate across columns
+#    r_t = raw_datas[i]
+#    r_prev = raw_datas[i - 1]
+#    x_dot, y_dot, theta_dot,  = r_t[0:3] - r_prev[0:3]
 
-    theta, v, delta, _ = r_t[2:]
+#    theta, v, delta, _ = r_t[2:]
 
 
     # Create x_dot and y_dot
-    x = [x_dot, y_dot, theta_dot, np.sin(theta), np.cos(theta), v, delta, dt[i - 1]]
-    x_datas[i, :] = x
+#    x = [x_dot, y_dot, theta_dot, np.sin(theta), np.cos(theta), v, delta, dt[i - 1]]
+#    x_datas[i, :] = x
 
-    y = [x_dot, y_dot, theta_dot]
-    y_datas[i - 1, :] = y
+#    y = [x_dot, y_dot, theta_dot]
+#    y_datas[i - 1, :] = y
 
 
 
@@ -142,6 +158,19 @@ y_datas[gt_y,2] = y_datas[gt_y,2] - 2*np.pi
 # your chosen smoother works as intended.
 # An example of what this may look like is in the homework document.
 
+# Filter xs (window / poly sizes as parameters?)
+x_datas[0, :] = scipy.signal.savgol_filter(x_datas[0, :], 5, 2)
+y_datas[0, :] = scipy.signal.savgol_filter(y_datas[0, :], 3, 2)
+
+# Filter ys
+x_datas[1, :] = scipy.signal.savgol_filter(x_datas[1, :], 5, 2)
+y_datas[1, :] = scipy.signal.savgol_filter(y_datas[1, :], 3, 2)
+
+# Filter thetas
+x_datas[2, :] = scipy.signal.savgol_filter(x_datas[2, :], 5, 2)
+y_datas[2, :] = scipy.signal.savgol_filter(y_datas[2, :], 3, 2)
+
+
 # Convince yourself that input/output values are not strange
 print("Xdot  ", np.min(x_datas[:,0]), np.max(x_datas[:,0]))
 print("Ydot  ", np.min(x_datas[:,1]), np.max(x_datas[:,1]))
@@ -157,7 +186,8 @@ print("y Ydot", np.min(y_datas[:,1]), np.max(y_datas[:,1]))
 print("y Tdot", np.min(y_datas[:,2]), np.max(y_datas[:,2]))
 
 ######### NN stuff
-dtype = torch.cuda.FloatTensor
+# dtype = torch.cuda.FloatTensor
+dtype = torch.FloatTensor  # For CPU training / dev.
 D_in, H, D_out = INPUT_SIZE, 32, OUTPUT_SIZE
 
 # Make validation set
@@ -180,7 +210,7 @@ y_val = torch.from_numpy(y_tt.astype('float32')).type(dtype)
 # specify your neural network (or other) model here.
 # model = torch
 
-model = MotionModel(D_in, H, H, D_out)
+model = MotionModel(D_in, H, H // 2, D_out)
 loss_fn = torch.nn.MSELoss(size_average=False)
 learning_rate = 1e-3
 opt = torch.optim.Adam(model.parameters(), lr=1e-3) #learning_rate)
@@ -200,7 +230,7 @@ def doTraining(model, filename, optimizer, N=5000):
 
     torch.save(model, filename)
 
-if len(sys.argv > 2):
+if len(sys.argv) > 2:
     doTraining(model, sys.argv[2], opt)
 
 
