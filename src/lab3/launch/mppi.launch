@@ -1,0 +1,17 @@
+<launch>
+
+
+    <include file="$(find lab3)/launch/MapServer.launch"/>
+
+	<arg name="ctrl_topic" default="/vesc/high_level/ackermann_cmd_mux/input/nav0"/>
+	<arg name="static_map" default="static_map"/>
+	<arg name="nn_model" default="model.th"/>
+
+
+    <node pkg="lab3" type="MPPI.py" name="MPPI" output="screen">
+		<param name="ctrl_topic" value="$(arg ctrl_topic)"/>
+		<param name="static_map" value="$(arg static_map)"/>
+		<param name="nn_model" value="$(arg nn_model)"/>
+	</node>
+
+</launch>
