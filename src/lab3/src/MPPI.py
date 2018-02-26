@@ -40,7 +40,7 @@ class MPPIController:
     # TODO
     # you should pre-allocate GPU memory when you can, and re-use it when
     # possible for arrays storing your controls or calculated MPPI costs, etc
-    model_name = rospy.get_param("~nn_model", "myneuralnetisbestneuralnet.pt")
+    model_name = rospy.get_param("~nn_model", "/home/josephz/Dropbox/UW/CSE490R/labs/src/lab3/src/fucking_model.th")
     self.model = torch.load(model_name)
     self.model.cuda() # tell torch to run the network on the GPU
     self.dtype = torch.cuda.FloatTensor
@@ -169,7 +169,7 @@ class MPPIController:
                          np.sin(theta),
                          np.cos(theta), 0.0, 0.0, dt])
 
-    run_ctrl, poses = mppi(curr_pose, nn_input)
+    run_ctrl, poses = self.mppi(curr_pose, nn_input)
 
     self.send_controls( run_ctrl[0], run_ctrl[1] )
 
@@ -222,5 +222,5 @@ if __name__ == '__main__':
 
   # test & DEBUG
   mp = MPPIController(T, K, sigma, _lambda)
-  test_MPPI(mp, 10, np.array([0.,0.,0.])))
+  test_MPPI(mp, 10, np.array([0.,0.,0.]))
 
