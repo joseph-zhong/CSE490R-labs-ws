@@ -114,7 +114,7 @@ delta = raw_datas[:, 4][1:]
 dt = np.diff(raw_datas[:,5])
 
 # Set x, y values
-x_datas = np.array([ x_dot[:-1], y_dot[:-1], theta_dot[:-1], sin_theta[:-1], cos_theta[:-1], v[:-1], delta[:-1], dt[:-1] ]).transpose()
+x_datas = np.array([ x_dot[:-1], y_dot[:-1], theta_dot[:-1], sin_theta[:-1], cos_theta[:-1], v[1:], delta[1:], dt[:-1] ]).transpose()
 y_datas = np.array([ x_dot[1:], y_dot[1:], theta_dot[1:] ]).transpose()
 
 print x_datas.shape, (raw_datas.shape[0], INPUT_SIZE)
@@ -151,16 +151,16 @@ y_datas[gt_y, 2] = y_datas[gt_y, 2] + 2*np.pi
 # An example of what this may look like is in the homework document.
 
 # Filter xs (window / poly sizes as parameters?)
-x_datas[0, :] = scipy.signal.savgol_filter(x_datas[0, :], 5, 2)
-y_datas[0, :] = scipy.signal.savgol_filter(y_datas[0, :], 3, 2)
+x_datas[:, 0] = scipy.signal.savgol_filter(x_datas[:, 0], 11, 3)
+y_datas[:, 0] = scipy.signal.savgol_filter(y_datas[:, 0], 11, 3)
 
 # Filter ys
-x_datas[1, :] = scipy.signal.savgol_filter(x_datas[1, :], 5, 2)
-y_datas[1, :] = scipy.signal.savgol_filter(y_datas[1, :], 3, 2)
+x_datas[:, 1] = scipy.signal.savgol_filter(x_datas[:, 1], 11, 3)
+y_datas[:, 1] = scipy.signal.savgol_filter(y_datas[:, 1], 11, 3)
 
 # Filter thetas
-x_datas[2, :] = scipy.signal.savgol_filter(x_datas[2, :], 5, 2)
-y_datas[2, :] = scipy.signal.savgol_filter(y_datas[2, :], 3, 2)
+x_datas[:, 2] = scipy.signal.savgol_filter(x_datas[:, 2], 11, 3)
+y_datas[:, 2] = scipy.signal.savgol_filter(y_datas[:, 2], 11, 3)
 
 
 # Convince yourself that input/output values are not strange
@@ -178,37 +178,43 @@ print("y Ydot", np.min(y_datas[:,1]), np.max(y_datas[:,1]))
 print("y Tdot", np.min(y_datas[:,2]), np.max(y_datas[:,2]))
 
 ######### NN stuff
-# dtype = torch.cuda.FloatTensor
-dtype = torch.FloatTensor  # For CPU training / dev.
-D_in, H, D_out = INPUT_SIZE, 64, OUTPUT_SIZE
-
-# Make validation set
-num_samples = x_datas.shape[0]
-rand_idx = np.random.permutation(num_samples)
-x_d = x_datas[rand_idx,:]
-y_d = y_datas[rand_idx,:]
-split = int(0.9*num_samples)
-x_tr = x_d[:split]
-y_tr = y_d[:split]
-x_tt = x_d[split:]
-y_tt = y_d[split:]
-
-x = torch.from_numpy(x_tr.astype('float32')).type(dtype)
-y = torch.from_numpy(y_tr.astype('float32')).type(dtype)
-x_val = torch.from_numpy(x_tt.astype('float32')).type(dtype)
-y_val = torch.from_numpy(y_tt.astype('float32')).type(dtype)
+dtype = torch.cuda.FloatTensor
+D_in, H, D_out = INPUT_SIZE, 96, OUTPUT_SIZE
 
 # TODO
 # specify your neural network (or other) model here.
 # model = torch
 
-model = MotionModel(D_in, H, H // 2, D_out)
+model = MotionModel(D_in, H, H // 2, D_out).cuda()  # Remove cuda for CPU training
 loss_fn = torch.nn.MSELoss(size_average=False)
 learning_rate = 1e-3
-opt = torch.optim.Adam(model.parameters(), lr=1e-3) #learning_rate)
+opt = torch.optim.Adam(model.parameters(), lr=learning_rate)
+
+
+# Shuffle the data after every pass.
+def shuffleData():
+    num_samples = x_datas.shape[0]
+    rand_idx = np.random.permutation(num_samples)
+    x_d = x_datas[rand_idx,:]
+    y_d = y_datas[rand_idx,:]
+    split = int(0.9*num_samples)
+    x_tr = x_d[:split]
+    y_tr = y_d[:split]
+    x_tt = x_d[split:]
+    y_tt = y_d[split:]
+
+    x = torch.from_numpy(x_tr.astype('float32')).type(dtype)
+    y = torch.from_numpy(y_tr.astype('float32')).type(dtype)
+    x_val = torch.from_numpy(x_tt.astype('float32')).type(dtype)
+    y_val = torch.from_numpy(y_tt.astype('float32')).type(dtype)
+
+
+    return x, x_val, y, y_val
+
 
 def doTraining(model, filename, optimizer, N=5000):
     for t in range(N):
+        x, x_val, y, y_val = shuffleData()  # Random mini-batch
         y_pred = model(Variable(x))
         loss = loss_fn(y_pred, Variable(y, requires_grad=False))
         if t % 50 == 0:
@@ -223,7 +229,7 @@ def doTraining(model, filename, optimizer, N=5000):
     torch.save(model, filename)
 
 if len(sys.argv) > 2:
-    doTraining(model, sys.argv[2], opt, N=10000)
+    doTraining(model, sys.argv[2], opt, N=5000)
 
 
 # The following are functions meant for debugging and sanity checking your
