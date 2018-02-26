@@ -19,7 +19,7 @@ from geometry_msgs.msg import PoseStamped, PoseArray, PoseWithCovarianceStamped,
 
 class MPPIController:
 
-  def __init__(self, T, K, sigma=0.5, _lambda=0.5):
+  def __init__(self, C, T, K, sigma=0.5, _lambda=0.5):
     print "Initializing Tam Dang"
     self.SPEED_TO_ERPM_OFFSET = float(rospy.get_param("/vesc/speed_to_erpm_offset", 0.0))
 
@@ -35,6 +35,7 @@ class MPPIController:
 
     self.last_pose = None
     # MPPI params
+    self.C = C
     self.T = T # Length of rollout horizon
     self.K = K # Number of sample rollouts
     self.sigma = sigma
@@ -42,7 +43,7 @@ class MPPIController:
 
     # Initialize controls
     self.controls = torch.FloatTensor(2, T).zero_()
-    self.goal = None # Lets keep track of the goal pose (world frame) over time
+    self.goal = None  # Lets keep track of the goal pose (world frame) over time
     self.lasttime = None
 
     # PyTorch / GPU data configuration
@@ -105,14 +106,14 @@ class MPPIController:
   # of the map and convincing yourself that you are correctly mapping the
   # click, and thus the goal pose, to accessible places in the map
   def clicked_goal_cb(self, msg):
-    self.goal = np.array([msg.pose.position.x,
+    self.goal = torch.cuda.FloatTensor([msg.pose.position.x,
                           msg.pose.position.y,
                           Utils.quaternion_to_angle(msg.pose.orientation)])
+
     print("Current Pose: ", self.last_pose)
     print("SETTING Goal: ", self.goal)
 
   def running_cost(self, pose, goal, ctrl, noise):
-    # TODO
     # This cost function drives the behavior of the car. You want to specify a
     # cost function that penalizes behavior that is bad with high cost, and
     # encourages good behavior with low cost.
@@ -121,9 +122,32 @@ class MPPIController:
     # smooth
     # You should feel free to explore other terms to get better or unique
     # behavior
-    pose_cost = 0.0
-    bounds_check = 0.0
-    ctrl_cost = 0.0
+
+    # REVIEW: We have ignored Q Matrix of scaling factors. It should be size as goal or pose.
+    # BROKEN BROKEN BROKEN BROKEN BROKEN BROKEN BROKEN BROKEN BROKEN BROKEN 
+    pose = pose.data[0].cpu().numpy()
+    Utils.world_to_map([pose], self.map_info)
+    goal = goal.cpu().numpy()
+    pose_cost = (pose - goal) ** 2
+
+    # REVIEW josephz: Is Pose height width or width height, region is hw.
+    print "pose", pose
+    print "ctrl", ctrl
+    print "noise", noise
+    print "goal", goal
+    print "permissable shape", self.permissible_region.shape
+
+    # TODO: Use util map to world / world to map fns to fix pose
+
+
+    bounds_check = self.C *\
+                   self.permissible_region[torch.ceil(pose[0]), torch.ceil(pose[1])]
+
+    ctrl_cost = self._lambda * ctrl / self.sigma * noise
+
+    print "bounds_check", bounds_check, "self.permissible_region.shape", self.permissible_region.shape
+    print "ctrl_cost", ctrl_cost
+    print "pose_cost", pose_cost
 
     return pose_cost + ctrl_cost + bounds_check
 
@@ -191,7 +215,7 @@ class MPPIController:
   def mppi_cb(self, msg):
     #print("callback")
     if self.last_pose is None:
-      self.last_pose = np.array([msg.pose.position.x,
+      self.last_pose = torch.cuda.FloatTensor([msg.pose.position.x,
                                  msg.pose.position.y,
                                  Utils.quaternion_to_angle(msg.pose.orientation)])
       # Default: initial goal to be where the car is when MPPI node is
@@ -270,6 +294,7 @@ def test_MPPI(mp, N, goal=np.array([0.,0.,0.])):
      
 if __name__ == '__main__':
   print "Entered Main"
+  C = 100000
   T = 30
   K = 1000
   sigma = 1.0 # These values will need to be tuned
@@ -277,7 +302,7 @@ if __name__ == '__main__':
 
   # run with ROS
   rospy.init_node("mppi_control", anonymous=True) # Initialize the node
-  mp = MPPIController(T, K, sigma, _lambda)
+  mp = MPPIController(C, T, K, sigma, _lambda)
   rospy.spin()
 
   # test & DEBUG
