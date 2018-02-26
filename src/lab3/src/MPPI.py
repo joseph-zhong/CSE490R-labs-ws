@@ -20,11 +20,18 @@ from geometry_msgs.msg import PoseStamped, PoseArray, PoseWithCovarianceStamped,
 class MPPIController:
 
   def __init__(self, T, K, sigma=0.5, _lambda=0.5):
+    print "Initializing Tam Dang"
     self.SPEED_TO_ERPM_OFFSET = float(rospy.get_param("/vesc/speed_to_erpm_offset", 0.0))
+
+    print "self.SPEED_TO_ERPM_OFFSET: ", self.SPEED_TO_ERPM_OFFSET
+
+
     self.SPEED_TO_ERPM_GAIN   = float(rospy.get_param("/vesc/speed_to_erpm_gain", 4614.0))
     self.STEERING_TO_SERVO_OFFSET = float(rospy.get_param("/vesc/steering_angle_to_servo_offset", 0.5304))
     self.STEERING_TO_SERVO_GAIN   = float(rospy.get_param("/vesc/steering_angle_to_servo_gain", -1.2135))
-    self.CAR_LENGTH = 0.33 
+    self.CAR_LENGTH = 0.33
+
+    print "self.STEERING_TO_SERVO_GAIN: ", self.STEERING_TO_SERVO_GAIN
 
     self.last_pose = None
     # MPPI params
@@ -33,6 +40,8 @@ class MPPIController:
     self.sigma = sigma
     self._lambda = _lambda
 
+    # Initialize controls
+    self.controls = torch.FloatTensor(2, T).zero_()
     self.goal = None # Lets keep track of the goal pose (world frame) over time
     self.lasttime = None
 
@@ -40,6 +49,7 @@ class MPPIController:
     # TODO
     # you should pre-allocate GPU memory when you can, and re-use it when
     # possible for arrays storing your controls or calculated MPPI costs, etc
+    print "Initializing model"
     model_name = rospy.get_param("~nn_model", "/home/josephz/Dropbox/UW/CSE490R/labs/src/lab3/src/fucking_model.th")
     self.model = torch.load(model_name)
     self.model.cuda() # tell torch to run the network on the GPU
@@ -84,7 +94,6 @@ class MPPIController:
             PoseStamped, self.clicked_goal_cb, queue_size=1)
     self.pose_sub  = rospy.Subscriber("/pf/ta/viz/inferred_pose",
             PoseStamped, self.mppi_cb, queue_size=1)
-    
   # TODO
   # You may want to debug your bounds checking code here, by clicking on a part
   # of the map and convincing yourself that you are correctly mapping the
@@ -113,16 +122,42 @@ class MPPIController:
     return pose_cost + ctrl_cost + bounds_check
 
   def mppi(self, init_pose, init_input):
+    """
+    :param init_pose:
+    :param init_input: Input to model.
+      Network input can be:
+        [ xdot, ydot, thetadot, sin(theta), cos(theta), vel, delta, dt ]
+    """
     t0 = time.time()
-    # Network input can be:
-    #   0    1       2          3           4        5      6   7
-    # xdot, ydot, thetadot, sin(theta), cos(theta), vel, delta, dt
 
-    # MPPI should
-    # generate noise according to sigma
-    # combine that noise with your central control sequence
+    # Generate noise for vel, and delta.
+    noise = np.random.normal(loc=0.0, scale=self.sigma, size=(self.K, 2, self.T))
+    py_noise = torch.FloatTensor(noise)
+    noisy_control = py_noise + self.controls
+
+    # Transpose to become shape (T, 2, K).
+    noisy_control = torch.transpose(noisy_control, 0, 2)
+    init = torch.FloatTensor(self.K, 8)
+    init_state = init + init_input
+
     # Perform rollouts with those controls from your current pose
-    # Calculate costs for each of K trajectories
+    cost = torch.FloatTensor(1, self.K).zeros_()
+    for t in self.T:
+      init_state[:, 5] = noisy_control[t, 0, :]
+      init_state[:, 6] = noisy_control[t, 1, :]
+
+      # Model was trained on [b, 8] inputs.
+      # x_t is output [k, poses].
+      x_t = self.model(init_state)
+
+      # Calculate costs for each of K trajectories.
+      c = self.running_cost(x_t, self.goal, self.controls, noise)
+      # assert c.size() == (1, self.K)
+      cost += c
+      print "c: ", c
+    min_cost = np.min(cost)
+    print "min_cost", min_cost
+
     # Perform the MPPI weighting on your calculatd costs
     # Scale the added noise by the weighting and add to your control sequence
     # Apply the first control values, and shift your control trajectory
@@ -139,7 +174,7 @@ class MPPIController:
     # between inferred-poses from the particle filter.
 
     print("MPPI: %4.5f ms" % ((time.time()-t0)*1000.0))
-
+    run_ctrl = poses = np.array([0.,0.,0.])
     return run_ctrl, poses
 
   def mppi_cb(self, msg):
@@ -195,21 +230,35 @@ class MPPIController:
         self.path_pub.publish(pa)
 
 def test_MPPI(mp, N, goal=np.array([0.,0.,0.])):
+  print "Testing MPPI"
   init_input = np.array([0.,0.,0.,0.,1.,0.,0.,0.])
   pose = np.array([0.,0.,0.])
+  last_pose = np.array([0.,0.,0.])
+
   mp.goal = goal
   print("Start:", pose)
   mp.ctrl.zero_()
-  last_pose = np.array([0.,0.,0.])
   for i in range(0,N):
     # ROLLOUT your MPPI function to go from a known location to a specified
     # goal pose. Convince yourself that it works.
+
+    # Pose x, y, theta.
+    pose_dot = pose - last_pose  # get state
+    last_pose = pose
+
+    timenow = time.time()
+    lasttime = timenow
+    dt = timenow - lasttime
+    nn_input = np.array([pose_dot[0], pose_dot[1], pose_dot[2],
+                         np.sin(0),
+                         np.cos(0), 0.0, 0.0, dt])
+    ctrl, pose = mp.mppi(init_pose=pose, init_input=nn_input)
 
     print("Now:", pose)
   print("End:", pose)
      
 if __name__ == '__main__':
-
+  print "Entered Main"
   T = 30
   K = 1000
   sigma = 1.0 # These values will need to be tuned
@@ -217,7 +266,7 @@ if __name__ == '__main__':
 
   # run with ROS
   #rospy.init_node("mppi_control", anonymous=True) # Initialize the node
-  #mp = MPPIController(T, K, sigma, _lambda)
+  # mp = MPPIController(T, K, sigma, _lambda)
   #rospy.spin()
 
   # test & DEBUG
