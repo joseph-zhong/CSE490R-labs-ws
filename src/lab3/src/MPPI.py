@@ -50,7 +50,7 @@ class MPPIController:
     # you should pre-allocate GPU memory when you can, and re-use it when
     # possible for arrays storing your controls or calculated MPPI costs, etc
     print "Initializing model"
-    model_name = rospy.get_param("~nn_model", "/home/josephz/Dropbox/UW/CSE490R/labs/src/lab3/src/fucking_model.th")
+    model_name = rospy.get_param("~nn_model", "/home/josephz/Dropbox/UW/CSE490R/labs/src/lab3/src/weights.th")
     self.model = torch.load(model_name)
     self.model.cuda() # tell torch to run the network on the GPU
     self.dtype = torch.cuda.FloatTensor
@@ -85,15 +85,21 @@ class MPPIController:
     self.map_width = map_msg.info.width
     array_255 = np.array(map_msg.data).reshape((map_msg.info.height, map_msg.info.width))
     self.permissible_region = np.zeros_like(array_255, dtype=bool)
-    self.permissible_region[array_255==0] = 1 # Numpy array of dimension (map_msg.info.height, map_msg.info.width),
-                                              # With values 0: not permissible, 1: permissible
-    self.permissible_region = np.negative(self.permissible_region) # 0 is permissible, 1 is not
-                                              
+
+    # Numpy array of dimension (map_msg.info.height, map_msg.info.width),
+    # With values 0: not permissible, 1: permissible
+    self.permissible_region[array_255 == 0] = 1
+
+    # 0 is permissible, 1 is not
+    # self.permissible_region = np.negative(self.permissible_region)
+    self.permissible_region = self.permissible_region == 0
+
     print("Making callbacks")
     self.goal_sub = rospy.Subscriber("/move_base_simple/goal",
             PoseStamped, self.clicked_goal_cb, queue_size=1)
-    self.pose_sub  = rospy.Subscriber("/pf/ta/viz/inferred_pose",
+    self.pose_sub  = rospy.Subscriber("/pf/viz/inferred_pose",
             PoseStamped, self.mppi_cb, queue_size=1)
+    print "Done Initalizing"
   # TODO
   # You may want to debug your bounds checking code here, by clicking on a part
   # of the map and convincing yourself that you are correctly mapping the
@@ -104,7 +110,7 @@ class MPPIController:
                           Utils.quaternion_to_angle(msg.pose.orientation)])
     print("Current Pose: ", self.last_pose)
     print("SETTING Goal: ", self.goal)
-    
+
   def running_cost(self, pose, goal, ctrl, noise):
     # TODO
     # This cost function drives the behavior of the car. You want to specify a
@@ -137,31 +143,36 @@ class MPPIController:
 
     # Transpose to become shape (T, 2, K).
     noisy_control = torch.transpose(noisy_control, 0, 2)
+    print "noisy_control", noisy_control.shape
+
     init = torch.FloatTensor(self.K, 8)
-    init_state = init + init_input
+    th_init_input = torch.FloatTensor(init_input)
+    init_state = init + th_init_input
+    print "init_state", init_state.shape
 
     # Perform rollouts with those controls from your current pose
-    cost = torch.FloatTensor(1, self.K).zeros_()
-    for t in self.T:
+    cost = torch.FloatTensor(1, self.K).zero_()
+    print "cost.shape()", cost.shape
+    for t in xrange(self.T):
       init_state[:, 5] = noisy_control[t, 0, :]
       init_state[:, 6] = noisy_control[t, 1, :]
 
       # Model was trained on [b, 8] inputs.
       # x_t is output [k, poses].
-      x_t = self.model(init_state)
+      x_t = self.model(Variable(init_state.cuda()))
 
       # Calculate costs for each of K trajectories.
       c = self.running_cost(x_t, self.goal, self.controls, noise)
       # assert c.size() == (1, self.K)
       cost += c
       print "c: ", c
-    min_cost = np.min(cost)
+    min_cost = torch.min(cost)
     print "min_cost", min_cost
 
     # Perform the MPPI weighting on your calculatd costs
     # Scale the added noise by the weighting and add to your control sequence
     # Apply the first control values, and shift your control trajectory
-    
+
     # Notes:
     # MPPI can be assisted by carefully choosing lambda, and sigma
     # It is advisable to clamp the control values to be within the feasible range
@@ -209,12 +220,12 @@ class MPPIController:
     self.send_controls( run_ctrl[0], run_ctrl[1] )
 
     self.visualize(poses)
-  
+
   def send_controls(self, speed, steer):
     print("Speed:", speed, "Steering:", steer)
     ctrlmsg = AckermannDriveStamped()
     ctrlmsg.header.seq = self.msgid
-    ctrlmsg.drive.steering_angle = steer 
+    ctrlmsg.drive.steering_angle = steer
     ctrlmsg.drive.speed = speed
     self.ctrl_pub.publish(ctrlmsg)
     self.msgid += 1
@@ -265,11 +276,11 @@ if __name__ == '__main__':
   _lambda = 1.0
 
   # run with ROS
-  #rospy.init_node("mppi_control", anonymous=True) # Initialize the node
-  # mp = MPPIController(T, K, sigma, _lambda)
-  #rospy.spin()
+  rospy.init_node("mppi_control", anonymous=True) # Initialize the node
+  mp = MPPIController(T, K, sigma, _lambda)
+  rospy.spin()
 
   # test & DEBUG
-  mp = MPPIController(T, K, sigma, _lambda)
-  test_MPPI(mp, 10, np.array([0.,0.,0.]))
+  # mp = MPPIController(T, K, sigma, _lambda)
+  # test_MPPI(mp, 10, np.array([0.,0.,0.]))
 
