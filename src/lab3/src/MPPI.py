@@ -106,8 +106,8 @@ class MPPIController:
                           msg.pose.position.y,
                           Utils.quaternion_to_angle(msg.pose.orientation)])
 
-    print("Current Pose: ", self.last_pose)
-    print("SETTING Goal: ", self.goal)
+    # print("Current Pose: ", self.last_pose)
+    # print("SETTING Goal: ", self.goal)
 
   def running_cost(self, pose, goal, ctrl, noise):
     # This cost function drives the behavior of the car. You want to specify a
@@ -122,29 +122,41 @@ class MPPIController:
     # REVIEW: We have ignored Q Matrix of scaling factors. It should be size as goal or pose.
     # BROKEN BROKEN BROKEN BROKEN BROKEN BROKEN BROKEN BROKEN BROKEN BROKEN (?)
     pose = pose.data
-    # print "pose_size", pose.size(), "goal_size", goal.size(), "ctrl_size", ctrl.size(), "noise_size", noise.size()
+    print "BEFOREEEEEEEEEEEEEEEEEEEEEEEE", pose
     Utils.world_to_map(pose, self.map_info)
+
+    goal = goal.cpu().numpy()
+    print "goal", goal
+    goal = np.expand_dims(goal, axis=0)
+    Utils.world_to_map(goal, self.map_info)
+    print "goal", goal
+    goal = torch.cuda.FloatTensor(goal)
+    goal = torch.squeeze(goal)
+    print "goal", goal
+
+    print "pose", pose
+
     pose_cost = (pose - goal) ** 2
+
+    # print "pose_cost shape", pose_cost.shape
+
     pose_cost[:, 2] *= self._theta_weight
     pose_cost = torch.sum(pose_cost, 1)
 
-    # print "pose", pose
-    # print "ctrl", ctrl
-    # print "noise", noise
-    # print "goal", goal
-    # print "permissable shape", self.permissible_region.shape
-
     # TODO: Use util map to world / world to map fns to fix pose
-    print "noise", noise
-    print "ctrl", ctrl
-    bounds_check = torch.cuda.FloatTensor(self.C * self.permissible_region[pose[:, 1].long(), pose[:, 0].long()])
+    # print "noise", noise
+    print "y value", pose[:, 0].long()
+    print "x value", pose[:, 1].long()
+    bounds_check = torch.cuda.FloatTensor(
+      self.C * self.permissible_region[pose[:, 1].long(), pose[:, 0].long()])
+    bounds_check = 0.0
     ctrl = ctrl.unsqueeze(1)  # Extend from (2,) to (2, 1) to allow matrix multiply
     ctrl_cost = self._lambda * torch.mm(noise, ctrl) / self.sigma
     ctrl_cost = ctrl_cost.squeeze()
 
-    print "bounds_check", bounds_check.shape
-    print "ctrl_cost", ctrl_cost.shape
-    print "pose_cost", pose_cost.shape
+    # print "bounds_check", bounds_check
+    # print "ctrl_cost", ctrl_cost
+    # print "pose_cost", pose_cost
 
     return pose_cost + ctrl_cost + bounds_check  # Returns vector of shape (K,)
 
@@ -157,7 +169,7 @@ class MPPIController:
     """
     t0 = time.time()
 
-    print "Entering MPPI"
+    print "Entering MPPI, init_pose", init_pose.shape, "init_input", init_input.shape
 
     # Generate noise for vel, and delta.
     # REVIEW: Make new sigma for one or the other.
@@ -179,6 +191,7 @@ class MPPIController:
 
     # Perform rollouts with those controls from your current pose
     cost = torch.cuda.FloatTensor(self.K, 1).zero_()
+    x_t_0 = None
     for t in xrange(self.T):
       init_state[:, 5] = noisy_control[t, 0, :]
       init_state[:, 6] = noisy_control[t, 1, :]
@@ -186,35 +199,46 @@ class MPPIController:
       # Model was trained on [b, 8] inputs.
       # x_t is output [k, poses].
       x_t = self.model(Variable(init_state.cuda()))
+      if x_t_0 is None:
+        x_t_0 = x_t
 
       # Calculate costs for each of K trajectories.
       c = self.running_cost(x_t, self.goal, self.controls[:, t], py_noise[:, :, t])
+
       cost += c.unsqueeze(1)
       print "c: ", c
 
     min_cost = torch.min(cost)
-    print "min_cost", min_cost
+    # print "min_cost", min_cost
 
     # Perform the MPPI weighting on your calculatd costs
     # Scale the added noise by the weighting and add to your control sequence
     # Apply the first control values, and shift your control trajectory
 
     # Definition of eta (immediately after beta in pseudo code)
-    normalizer = torch.sum(np.exp((-1 / self._lambda) * (cost - min_cost)))
-    weights = (1 / normalizer) * np.exp((-1 / self._lambda) * (cost - min_cost))
+    # print "cost", cost
+    # print "min cost", min_cost
 
-    print "normalizer", normalizer
-    print "weights", weights
+    normalizer = torch.sum(torch.exp((-1 / self._lambda) * (cost - min_cost)), 0)
+    weights = (1 / normalizer) * torch.exp((-1 / self._lambda) * (cost - min_cost))
+    weights = weights.squeeze()
+    # print "normalizer", normalizer
+    # print "weights", weights
     for t in xrange(self.T):
-      st_noises = noisy_control[t][0]
-      vel_noises = noisy_control[t][1]
+      st_noises = torch.cuda.FloatTensor(noisy_control[t][0])
+      vel_noises = torch.cuda.FloatTensor(noisy_control[t][1])
+      # print "weights", weights.shape, "st_noises", st_noises.shape, "vel_noise", vel_noises.shape
+
       st_weighted_noise = weights.dot(st_noises)
-      vel_weighted_noise = weights.dot(st_noises)
+      vel_weighted_noise = weights.dot(vel_noises)
+
 
       self.controls[0][t] += st_weighted_noise
       self.controls[1][t] += vel_weighted_noise
 
-
+      # print "st_weighted_noise", st_weighted_noise
+      # print "vel_weighted_noise", vel_weighted_noise
+    # print "normalizer", normalizer
     # Notes:
     # MPPI can be assisted by carefully choosing lambda, and sigma
     # It is advisable to clamp the control values to be within the feasible range
@@ -227,8 +251,9 @@ class MPPIController:
     # between inferred-poses from the particle filter.
 
     print("MPPI: %4.5f ms" % ((time.time()-t0)*1000.0))
-    run_ctrl = poses = np.array([0.,0.,0.])
-    return run_ctrl, poses
+    run_ctrl = self.controls[:, 0]
+    new_poses = init_pose + x_t_0.data
+    return run_ctrl, new_poses
 
   def mppi_cb(self, msg):
     #print("callback")
@@ -260,6 +285,10 @@ class MPPIController:
     run_ctrl, poses = self.mppi(curr_pose, nn_input)
 
     self.send_controls( run_ctrl[0], run_ctrl[1] )
+
+    self.controls[:, :-1] = self.controls[:, 1:]
+    self.controls[:, -1] = 0.0
+    # print "controls", self.controls
 
     self.visualize(poses)
 
@@ -317,7 +346,7 @@ if __name__ == '__main__':
   T = 30
   K = 1000
   sigma = 1.0 # These values will need to be tuned
-  _lambda = 1.0
+  _lambda = 0.01
 
   # run with ROS
   rospy.init_node("mppi_control", anonymous=True) # Initialize the node
