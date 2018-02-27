@@ -186,7 +186,8 @@ D_in, H, D_out = INPUT_SIZE, 96, OUTPUT_SIZE
 # model = torch
 
 model = MotionModel(D_in, H, H // 2, D_out).cuda()  # Remove cuda for CPU training
-loss_fn = torch.nn.MSELoss(size_average=False)
+# loss_fn = torch.nn.MSELoss(size_average=False)
+loss_fn = torch.nn.SmoothL1Loss(size_average=False)
 learning_rate = 1e-3
 opt = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
