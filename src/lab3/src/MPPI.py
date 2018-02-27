@@ -20,20 +20,14 @@ from geometry_msgs.msg import PoseStamped, PoseArray, PoseWithCovarianceStamped,
 class MPPIController:
 
   def __init__(self, C, T, K, sigma=0.5, _lambda=0.5):
-    print "Initializing Tam Dang"
     self.SPEED_TO_ERPM_OFFSET = float(rospy.get_param("/vesc/speed_to_erpm_offset", 0.0))
-
-    print "self.SPEED_TO_ERPM_OFFSET: ", self.SPEED_TO_ERPM_OFFSET
-
-
     self.SPEED_TO_ERPM_GAIN   = float(rospy.get_param("/vesc/speed_to_erpm_gain", 4614.0))
     self.STEERING_TO_SERVO_OFFSET = float(rospy.get_param("/vesc/steering_angle_to_servo_offset", 0.5304))
     self.STEERING_TO_SERVO_GAIN   = float(rospy.get_param("/vesc/steering_angle_to_servo_gain", -1.2135))
     self.CAR_LENGTH = 0.33
 
-    print "self.STEERING_TO_SERVO_GAIN: ", self.STEERING_TO_SERVO_GAIN
-
     self.last_pose = None
+
     # MPPI params
     self.C = C
     self.T = T # Length of rollout horizon
@@ -102,6 +96,7 @@ class MPPIController:
     self.pose_sub  = rospy.Subscriber("/pf/viz/inferred_pose",
             PoseStamped, self.mppi_cb, queue_size=1)
     print "Done Initalizing"
+
   # TODO
   # You may want to debug your bounds checking code here, by clicking on a part
   # of the map and convincing yourself that you are correctly mapping the
@@ -133,7 +128,6 @@ class MPPIController:
     pose_cost[:, 2] *= self._theta_weight
     pose_cost = torch.sum(pose_cost, 1)
 
-    # REVIEW josephz: Is Pose height width or width height, region is hw.
     # print "pose", pose
     # print "ctrl", ctrl
     # print "noise", noise
@@ -146,6 +140,7 @@ class MPPIController:
     bounds_check = torch.cuda.FloatTensor(self.C * self.permissible_region[pose[:, 1].long(), pose[:, 0].long()])
     ctrl = ctrl.unsqueeze(1)  # Extend from (2,) to (2, 1) to allow matrix multiply
     ctrl_cost = self._lambda * torch.mm(noise, ctrl) / self.sigma
+    ctrl_cost = ctrl_cost.squeeze()
 
     print "bounds_check", bounds_check.shape
     print "ctrl_cost", ctrl_cost.shape
@@ -161,6 +156,8 @@ class MPPIController:
         [ xdot, ydot, thetadot, sin(theta), cos(theta), vel, delta, dt ]
     """
     t0 = time.time()
+
+    print "Entering MPPI"
 
     # Generate noise for vel, and delta.
     # REVIEW: Make new sigma for one or the other.
@@ -181,8 +178,7 @@ class MPPIController:
     print "init_state", init_state.shape
 
     # Perform rollouts with those controls from your current pose
-    cost = torch.cuda.FloatTensor(1, self.K).zero_()
-    print "cost.shape()", cost.shape
+    cost = torch.cuda.FloatTensor(self.K, 1).zero_()
     for t in xrange(self.T):
       init_state[:, 5] = noisy_control[t, 0, :]
       init_state[:, 6] = noisy_control[t, 1, :]
@@ -194,8 +190,9 @@ class MPPIController:
       # Calculate costs for each of K trajectories.
       c = self.running_cost(x_t, self.goal, self.controls[:, t], py_noise[:, :, t])
       # assert c.size() == (1, self.K)
-      cost += c
+      cost += c.unsqueeze(1)
       print "c: ", c
+
     min_cost = torch.min(cost)
     print "min_cost", min_cost
 
@@ -297,7 +294,8 @@ def test_MPPI(mp, N, goal=np.array([0.,0.,0.])):
 
     print("Now:", pose)
   print("End:", pose)
-     
+
+
 if __name__ == '__main__':
   print "Entered Main"
   C = 100000
@@ -308,6 +306,7 @@ if __name__ == '__main__':
 
   # run with ROS
   rospy.init_node("mppi_control", anonymous=True) # Initialize the node
+  print "Node initialized;"
   mp = MPPIController(C, T, K, sigma, _lambda)
   rospy.spin()
 
