@@ -209,7 +209,8 @@ class MPPIController:
       init_state[:, 6] = noisy_control[t, 1, :]
 
       # Model was trained on [b, 8] inputs.
-      # x_t is output [k, poses].
+      # x_t is output [k, poses]
+      print "Here is a picture of init_state: ", init_state
       x_t = self.model(Variable(init_state.cuda()))
       xts[t] = x_t.data
 
@@ -269,7 +270,12 @@ class MPPIController:
     return run_ctrl, new_poses
 
   def mppi_cb(self, msg):
-    #print("callback")
+    print("-------------------------------------------------callback--------------------------------------------")
+    print "x: ", msg.pose.position.x, "y: ", msg.pose.position.y, "theta: ", Utils.quaternion_to_angle(msg.pose.orientation)
+    location_in_pix = np.expand_dims(np.array([msg.pose.position.x, msg.pose.position.y, Utils.quaternion_to_angle(msg.pose.orientation)]), axis=0)
+    Utils.world_to_map(location_in_pix, self.map_info)
+    print "x_pix: ", location_in_pix[:,0], "y_pix: ", location_in_pix[:,1], "theta_pix: ", location_in_pix[:,2]
+
     if self.last_pose is None:
       self.last_pose = torch.cuda.FloatTensor([msg.pose.position.x,
                                  msg.pose.position.y,
@@ -281,7 +287,7 @@ class MPPIController:
       return
 
     theta = Utils.quaternion_to_angle(msg.pose.orientation)
-    curr_pose = np.array([msg.pose.position.x,
+    curr_pose = torch.cuda.FloatTensor([msg.pose.position.x,
                           msg.pose.position.y,
                           theta])
 
@@ -291,13 +297,16 @@ class MPPIController:
     timenow = msg.header.stamp.to_sec()
     dt = timenow - self.lasttime
     self.lasttime = timenow
-    nn_input = np.array([pose_dot[0], pose_dot[1], pose_dot[2],
+    nn_input = torch.cuda.FloatTensor([pose_dot[0], pose_dot[1], pose_dot[2],
                          np.sin(theta),
                          np.cos(theta), 0.0, 0.0, dt])
 
     run_ctrl, poses = self.mppi(curr_pose, nn_input)
 
-    self.send_controls( run_ctrl[0], run_ctrl[1] )
+    print "The controls that we are going to run are: ", run_ctrl
+    print "The size of the poses returned is ", poses.shape
+
+    self.send_controls(run_ctrl[0], run_ctrl[1])
 
     self.controls[:, :-1] = self.controls[:, 1:]
     self.controls[:, -1] = 0.0
