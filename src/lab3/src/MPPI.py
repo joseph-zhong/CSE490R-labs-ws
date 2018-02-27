@@ -146,7 +146,7 @@ class MPPIController:
     print "ctrl_cost", ctrl_cost.shape
     print "pose_cost", pose_cost.shape
 
-    return pose_cost + ctrl_cost + bounds_check
+    return pose_cost + ctrl_cost + bounds_check  # Returns vector of shape (K,)
 
   def mppi(self, init_pose, init_input):
     """
@@ -189,7 +189,6 @@ class MPPIController:
 
       # Calculate costs for each of K trajectories.
       c = self.running_cost(x_t, self.goal, self.controls[:, t], py_noise[:, :, t])
-      # assert c.size() == (1, self.K)
       cost += c.unsqueeze(1)
       print "c: ", c
 
@@ -199,6 +198,22 @@ class MPPIController:
     # Perform the MPPI weighting on your calculatd costs
     # Scale the added noise by the weighting and add to your control sequence
     # Apply the first control values, and shift your control trajectory
+
+    # Definition of eta (immediately after beta in pseudo code)
+    normalizer = torch.sum(np.exp((-1 / self._lambda) * (cost - min_cost)))
+    weights = (1 / normalizer) * np.exp((-1 / self._lambda) * (cost - min_cost))
+
+    print "normalizer", normalizer
+    print "weights", weights
+    for t in xrange(self.T):
+      st_noises = noisy_control[t][0]
+      vel_noises = noisy_control[t][1]
+      st_weighted_noise = weights.dot(st_noises)
+      vel_weighted_noise = weights.dot(st_noises)
+
+      self.controls[0][t] += st_weighted_noise
+      self.controls[1][t] += vel_weighted_noise
+
 
     # Notes:
     # MPPI can be assisted by carefully choosing lambda, and sigma
