@@ -6,7 +6,7 @@
 	<arg name="ctrl_topic" default="/vesc/high_level/ackermann_cmd_mux/input/nav0"/>
 	<arg name="static_map" default="static_map"/>
 	<!--<arg name="nn_model" default="weights.th"/>-->
-	<arg name="nn_model" default="/home/josephz/Dropbox/UW/CSE490R/labs/src/lab3/src/weights.th"/>
+	<arg name="nn_model" default="/home/nvidia/catkin_ws/src/lab3/src/model.th"/>
 
 
     <node pkg="lab3" type="MPPI.py" name="MPPI" output="screen">

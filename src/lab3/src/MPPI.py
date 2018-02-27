@@ -40,9 +40,10 @@ class MPPIController:
     self.K = K # Number of sample rollouts
     self.sigma = sigma
     self._lambda = _lambda
+    self._theta_weight = 0.5
 
     # Initialize controls
-    self.controls = torch.FloatTensor(2, T).zero_()
+    self.controls = torch.cuda.FloatTensor(2, T).zero_()
     self.goal = None  # Lets keep track of the goal pose (world frame) over time
     self.lasttime = None
 
@@ -124,30 +125,31 @@ class MPPIController:
     # behavior
 
     # REVIEW: We have ignored Q Matrix of scaling factors. It should be size as goal or pose.
-    # BROKEN BROKEN BROKEN BROKEN BROKEN BROKEN BROKEN BROKEN BROKEN BROKEN 
-    pose = pose.data[0].cpu().numpy()
-    Utils.world_to_map([pose], self.map_info)
-    goal = goal.cpu().numpy()
+    # BROKEN BROKEN BROKEN BROKEN BROKEN BROKEN BROKEN BROKEN BROKEN BROKEN (?)
+    pose = pose.data
+    # print "pose_size", pose.size(), "goal_size", goal.size(), "ctrl_size", ctrl.size(), "noise_size", noise.size()
+    Utils.world_to_map(pose, self.map_info)
     pose_cost = (pose - goal) ** 2
+    pose_cost[:, 2] *= self._theta_weight
+    pose_cost = torch.sum(pose_cost, 1)
 
     # REVIEW josephz: Is Pose height width or width height, region is hw.
-    print "pose", pose
-    print "ctrl", ctrl
-    print "noise", noise
-    print "goal", goal
-    print "permissable shape", self.permissible_region.shape
+    # print "pose", pose
+    # print "ctrl", ctrl
+    # print "noise", noise
+    # print "goal", goal
+    # print "permissable shape", self.permissible_region.shape
 
     # TODO: Use util map to world / world to map fns to fix pose
+    print "noise", noise
+    print "ctrl", ctrl
+    bounds_check = torch.cuda.FloatTensor(self.C * self.permissible_region[pose[:, 1].long(), pose[:, 0].long()])
+    ctrl = ctrl.unsqueeze(1)  # Extend from (2,) to (2, 1) to allow matrix multiply
+    ctrl_cost = self._lambda * torch.mm(noise, ctrl) / self.sigma
 
-
-    bounds_check = self.C *\
-                   self.permissible_region[torch.ceil(pose[0]), torch.ceil(pose[1])]
-
-    ctrl_cost = self._lambda * ctrl / self.sigma * noise
-
-    print "bounds_check", bounds_check, "self.permissible_region.shape", self.permissible_region.shape
-    print "ctrl_cost", ctrl_cost
-    print "pose_cost", pose_cost
+    print "bounds_check", bounds_check.shape
+    print "ctrl_cost", ctrl_cost.shape
+    print "pose_cost", pose_cost.shape
 
     return pose_cost + ctrl_cost + bounds_check
 
@@ -161,21 +163,25 @@ class MPPIController:
     t0 = time.time()
 
     # Generate noise for vel, and delta.
-    noise = np.random.normal(loc=0.0, scale=self.sigma, size=(self.K, 2, self.T))
-    py_noise = torch.FloatTensor(noise)
+    # REVIEW: Make new sigma for one or the other.
+    vel_noise = np.random.normal(loc=0.0, scale=self.sigma, size=(self.K, 1, self.T))
+    delta_noise = np.random.normal(loc=0.0, scale=self.sigma, size=(self.K, 1, self.T))
+    noise = np.concatenate((vel_noise, delta_noise), axis=1)
+    py_noise = torch.cuda.FloatTensor(noise)
     noisy_control = py_noise + self.controls
 
     # Transpose to become shape (T, 2, K).
     noisy_control = torch.transpose(noisy_control, 0, 2)
-    print "noisy_control", noisy_control.shape
+    # print "noisy_control", noisy_control.shape
+    # print "py_noise", py_noise.shape
 
-    init = torch.FloatTensor(self.K, 8)
-    th_init_input = torch.FloatTensor(init_input)
+    init = torch.cuda.FloatTensor(self.K, 8)
+    th_init_input = torch.cuda.FloatTensor(init_input)
     init_state = init + th_init_input
     print "init_state", init_state.shape
 
     # Perform rollouts with those controls from your current pose
-    cost = torch.FloatTensor(1, self.K).zero_()
+    cost = torch.cuda.FloatTensor(1, self.K).zero_()
     print "cost.shape()", cost.shape
     for t in xrange(self.T):
       init_state[:, 5] = noisy_control[t, 0, :]
@@ -186,7 +192,7 @@ class MPPIController:
       x_t = self.model(Variable(init_state.cuda()))
 
       # Calculate costs for each of K trajectories.
-      c = self.running_cost(x_t, self.goal, self.controls, noise)
+      c = self.running_cost(x_t, self.goal, self.controls[:, t], py_noise[:, :, t])
       # assert c.size() == (1, self.K)
       cost += c
       print "c: ", c
