@@ -122,7 +122,9 @@ class MPPIController:
     # REVIEW: We have ignored Q Matrix of scaling factors. It should be size as goal or pose.
     # BROKEN BROKEN BROKEN BROKEN BROKEN BROKEN BROKEN BROKEN BROKEN BROKEN (?)
     pose = pose.data
-    print "BEFOREEEEEEEEEEEEEEEEEEEEEEEE", pose
+    print "The input pose to running cost is:", pose
+    print "The input goal to running cost is:", goal
+
     Utils.world_to_map(pose, self.map_info)
 
     goal = goal.cpu().numpy()
@@ -132,9 +134,9 @@ class MPPIController:
     print "goal", goal
     goal = torch.cuda.FloatTensor(goal)
     goal = torch.squeeze(goal)
-    print "goal", goal
+    print "goal now that it is a tensor is ", goal
 
-    print "pose", pose
+    print "pose now that it is a tensor is ", pose
 
     pose_cost = (pose - goal) ** 2
 
@@ -308,8 +310,9 @@ class MPPIController:
       for i in range(0, self.num_viz_paths):
         pa = Path()
         pa.header = Utils.make_header(frame_id)
-        pa.poses = map(Utils.particle_to_posestamped, poses[i,:,:], [frame_id]*self.T)
+        pa.poses = map(Utils.particle_to_posestamped, poses[i, :, :], [frame_id]*self.T)
         self.path_pub.publish(pa)
+
 
 def test_MPPI(mp, N, goal=np.array([0.,0.,0.])):
   print "Testing MPPI"
