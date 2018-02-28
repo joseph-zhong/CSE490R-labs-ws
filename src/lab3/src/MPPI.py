@@ -121,28 +121,35 @@ class MPPIController:
 
     # REVIEW: We have ignored Q Matrix of scaling factors. It should be size as goal or pose.
     # BROKEN BROKEN BROKEN BROKEN BROKEN BROKEN BROKEN BROKEN BROKEN BROKEN (?)
-    pose = pose.data.cpu()
-    # print "init. pose data:", pose
-    Utils.world_to_map(pose, self.map_info)
-    print "pose after world_to_map:", torch.max(pose[:, 0]), torch.max(pose[:, 1])
+    # These are supposed to be in world coordinates.
+    pose_c = pose.data.cpu().numpy()
+    goal_c = goal.cpu().numpy()
+    ctrl_c = ctrl.cpu().numpy()
+    noise_c = noise.cpu().numpy()
 
-    goal = goal.cpu().numpy()
+    # print "init. pose data:", pose
+    Utils.world_to_map(pose_c, self.map_info)
+    print "running_cost pose_c after world_to_map:", np.max(pose_c[:, 0]), np.max(pose_c[:, 1])
+
     # print "goal before expanding:", goal
-    goal = np.expand_dims(goal, axis=0)
-    Utils.world_to_map(goal, self.map_info)
+    goal_c = np.expand_dims(goal_c, axis=0)
+    Utils.world_to_map(goal_c, self.map_info)
+    goal_c = np.squeeze(goal_c)
+
     # print "goal after world_to_map:", goal
-    goal = torch.cuda.FloatTensor(goal)
-    goal = torch.squeeze(goal)
+    # goal = torch.cuda.FloatTensor(goal)
+    # goal = torch.squeeze(goal)
     # print "goal after torchify + squeeze:", goal
 
     # Cost between pose and goal
-    pose = pose.cuda()
-    pose_cost = (pose - goal) ** 2
+    # pose = pose.cuda()
+    pose_cost = (pose_c - goal_c) ** 2
     pose_cost[:, 2] *= self._theta_weight
-    pose_cost = torch.sum(pose_cost, 1)
+    pose_cost = np.sum(pose_cost, 1)
 
-    print "y values:", pose[:, 0].long()
-    print "x values:", pose[:, 1].long()
+    print "running_cost y values:", np.max(pose_c[:, 0])
+    print "running_cost x values:", np.max(pose_c[:, 1])
+
 
     # Remove points that are not on the map.
     def create_bounds():
@@ -151,26 +158,36 @@ class MPPIController:
       for i, c in enumerate(coordinates):
         if 0 <= c[0] < self.map_height and 0 <= c[1] < self.map_width:
           bounds[i] = 1
-
       return bounds
 
-    bounds_within_region = create_bounds()
-    y_bounds = pose[:, 0].long() * bounds_within_region
-    x_bounds = pose[:, 1].long() * bounds_within_region
+    def create_bounds_c():
+      coordinates = zip(pose[:, 0].astype(np.int), pose[:, 1].astype(np.int))
+      bounds = np.empty(K)
+      for i, c in enumerate(coordinates):
+        if 0 <= c[0] < self.map_height and 0 <= c[1] < self.map_width:
+          bounds[i] = 1
+      return bounds
 
-    print "y values (bounded):", torch.max(y_bounds)
-    print "x values (bounded):", torch.max(x_bounds)
+    # bounds_within_region = create_bounds()
+    # y_bounds = pose_c[:, 0].astype(np.int) * bounds_within_region
+    # x_bounds = pose_c[:, 1].astype(np.int) * bounds_within_region
+    #
+    # print "y values (bounded):", np.max(y_bounds)
+    # print "x values (bounded):", np.max(x_bounds)
 
-    bounds_check = torch.cuda.FloatTensor(self.C * self.permissible_region[y_bounds, x_bounds])
-    ctrl = ctrl.unsqueeze(1)  # Extend from (2,) to (2, 1) to allow matrix multiply
-    ctrl_cost = self._lambda * torch.mm(noise, ctrl) / self.sigma
+    # bounds_check = torch.cuda.FloatTensor(self.C * self.permissible_region[y_bounds, x_bounds])
+    bounds_check_c = self.C * self.permissible_region[pose_c[:, 0].astype(np.int), pose_c[:, 1].astype(np.int)]
+    # ctrl = ctrl.unsqueeze(1)  # Extend from (2,) to (2, 1) to allow matrix multiply
+    ctrl_c = np.expand_dims(ctrl_c, 1)
+    # ctrl_cost = self._lambda * torch.mm(noise, ctrl) / self.sigma
+    ctrl_cost = self._lambda * np.matmul(noise_c, ctrl_c) / self.sigma
     ctrl_cost = ctrl_cost.squeeze()
 
-    print "bounds_check", bounds_check
-    print "ctrl_cost", ctrl_cost
-    print "pose_cost", pose_cost
+    print "running_cost bounds_check", np.max(bounds_check_c)
+    print "running_cost ctrl_cost", np.max(ctrl_cost)
+    print "running_cost pose_cost", np.max(pose_cost)
 
-    return pose_cost + ctrl_cost + bounds_check  # Returns vector of shape (K,)
+    return torch.cuda.FloatTensor(pose_cost + ctrl_cost + bounds_check_c) # Returns vector of shape (K,)
 
   def mppi(self, init_pose, init_input):
     """
@@ -181,7 +198,7 @@ class MPPIController:
     """
     t0 = time.time()
 
-    print "Entering MPPI, init_pose", init_pose.shape, "init_input", init_input.shape
+    print "Entering MPPI, init_pose", init_pose, "init_input max", torch.max(init_input)
 
     # Generate noise for vel, and delta.
     # REVIEW: Make new sigma for one or the other.
@@ -199,7 +216,7 @@ class MPPIController:
     init = torch.cuda.FloatTensor(self.K, 8)
     th_init_input = torch.cuda.FloatTensor(init_input)
     init_state = init + th_init_input
-    print "init_state", init_state.shape
+    print "mppi: init_state max", torch.max(init_state)
 
     xts = torch.cuda.FloatTensor(self.T, self.K, 3)
     # Perform rollouts with those controls from your current pose
@@ -214,13 +231,15 @@ class MPPIController:
       x_t = self.model(Variable(init_state.cuda()))
       xts[t] = x_t.data
 
-      print "x_t before running_cost", x_t
+      # print "x_t before running_cost", x_t
+      print "mppi: before max x_t", torch.max(x_t)
       # Calculate costs for each of K trajectories.
       c = self.running_cost(x_t, self.goal, self.controls[:, t], py_noise[:, :, t])
-      print "x_t after running_cost", x_t
+      print "mppi: after max x_t", torch.max(x_t)
+      # print "x_t after running_cost", x_t
 
       cost += c.unsqueeze(1)
-      print "c: ", c
+      # print "c: ", c
 
     min_cost = torch.min(cost)
     print "min_cost:", min_cost
@@ -264,9 +283,9 @@ class MPPIController:
     print("MPPI: %4.5f ms" % ((time.time()-t0)*1000.0))
     run_ctrl = self.controls[:, 0]
 
-    # TODO: Convert to World?
     new_poses = xts.cpu().numpy() + init_pose  # New poses are in meters
-    Utils.map_to_world(new_poses, self.map_info)
+    # TODO: Convert to World? REMOVEEEEEEEEEEEEEEEEEEEEEEEEEE
+    # Utils.map_to_world(new_poses, self.map_info)
     return run_ctrl, new_poses
 
   def mppi_cb(self, msg):
@@ -275,6 +294,7 @@ class MPPIController:
     location_in_pix = np.expand_dims(np.array([msg.pose.position.x, msg.pose.position.y, Utils.quaternion_to_angle(msg.pose.orientation)]), axis=0)
     Utils.world_to_map(location_in_pix, self.map_info)
     print "x_pix: ", location_in_pix[:,0], "y_pix: ", location_in_pix[:,1], "theta_pix: ", location_in_pix[:,2]
+
 
     if self.last_pose is None:
       self.last_pose = torch.cuda.FloatTensor([msg.pose.position.x,
@@ -312,7 +332,7 @@ class MPPIController:
     self.controls[:, -1] = 0.0
     # print "controls", self.controls
 
-    print "poses before visualizing", poses
+    print "mppi_cb poses before visualizing"
     self.visualize(poses)
 
   def send_controls(self, speed, steer):
@@ -326,7 +346,7 @@ class MPPIController:
 
   # Publish some paths to RVIZ to visualize rollouts
   def visualize(self, poses):
-    print "visualizing poses", poses
+    # print "visualizing poses", poses
     if self.path_pub.get_num_connections() > 0:
       frame_id = 'map'
       for i in range(0, self.num_viz_paths):
