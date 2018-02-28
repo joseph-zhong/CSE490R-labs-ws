@@ -19,7 +19,7 @@ from geometry_msgs.msg import PoseStamped, PoseArray, PoseWithCovarianceStamped,
 
 class MPPIController:
 
-  def __init__(self, C, T, K, sigma=0.5, _lambda=0.5):
+  def __init__(self, C, T, K, velocity_sigma, steering_sigma, _lambda=0.5):
     self.SPEED_TO_ERPM_OFFSET = float(rospy.get_param("/vesc/speed_to_erpm_offset", 0.0))
     self.SPEED_TO_ERPM_GAIN   = float(rospy.get_param("/vesc/speed_to_erpm_gain", 4614.0))
     self.STEERING_TO_SERVO_OFFSET = float(rospy.get_param("/vesc/steering_angle_to_servo_offset", 0.5304))
@@ -32,7 +32,8 @@ class MPPIController:
     self.C = C
     self.T = T # Length of rollout horizon
     self.K = K # Number of sample rollouts
-    self.sigma = sigma
+    self.velocity_sigma = velocity_sigma
+    self.steering_sigma = steering_sigma
     self._lambda = _lambda
     self._theta_weight = 0.5
 
@@ -143,6 +144,7 @@ class MPPIController:
 
     # Cost between pose and goal
     # pose = pose.cuda()
+    # TODO different semantic meanings
     pose_cost = (pose_c - goal_c) ** 2
     pose_cost[:, 2] *= self._theta_weight
     pose_cost = np.sum(pose_cost, 1)
@@ -179,8 +181,8 @@ class MPPIController:
     bounds_check_c = self.C * self.permissible_region[pose_c[:, 0].astype(np.int), pose_c[:, 1].astype(np.int)]
     # ctrl = ctrl.unsqueeze(1)  # Extend from (2,) to (2, 1) to allow matrix multiply
     ctrl_c = np.expand_dims(ctrl_c, 1)
-    # ctrl_cost = self._lambda * torch.mm(noise, ctrl) / self.sigma
-    ctrl_cost = self._lambda * np.matmul(noise_c, ctrl_c) / self.sigma
+    # ctrl_cost = self._lambda * torch.mm(noise, ctrl) / self.steering_sigma
+    ctrl_cost = self._lambda * np.matmul(noise_c, ctrl_c) / self.steering_sigma
     ctrl_cost = ctrl_cost.squeeze()
 
     print "running_cost bounds_check", np.max(bounds_check_c)
@@ -189,21 +191,22 @@ class MPPIController:
 
     return torch.cuda.FloatTensor(pose_cost + ctrl_cost + bounds_check_c) # Returns vector of shape (K,)
 
-  def mppi(self, init_pose, init_input):
+  def mppi(self, curr_pose, init_input):
     """
-    :param init_pose:
+    :param curr_pose:
     :param init_input: Input to model.
       Network input can be:
         [ xdot, ydot, thetadot, sin(theta), cos(theta), vel, delta, dt ]
     """
     t0 = time.time()
 
-    print "Entering MPPI, init_pose", init_pose, "init_input max", torch.max(init_input)
+    print "Entering MPPI, init_pose", curr_pose, "init_input max", torch.max(init_input)
 
     # Generate noise for vel, and delta.
     # REVIEW: Make new sigma for one or the other.
-    vel_noise = np.random.normal(loc=0.0, scale=self.sigma, size=(self.K, 1, self.T))
-    delta_noise = np.random.normal(loc=0.0, scale=self.sigma, size=(self.K, 1, self.T))
+    # min and max the randoms and give them different sigma
+    vel_noise = np.random.normal(loc=0.0, scale=self.velocity_sigma, size=(self.K, 1, self.T))
+    delta_noise = np.random.normal(loc=0.0, scale=self.steering_sigma, size=(self.K, 1, self.T))
     noise = np.concatenate((vel_noise, delta_noise), axis=1)
     py_noise = torch.cuda.FloatTensor(noise)
     noisy_control = py_noise + self.controls
@@ -219,6 +222,7 @@ class MPPIController:
     print "mppi: init_state max", torch.max(init_state)
 
     xts = torch.cuda.FloatTensor(self.T, self.K, 3)
+    xts += curr_pose
     # Perform rollouts with those controls from your current pose
     cost = torch.cuda.FloatTensor(self.K, 1).zero_()
     for t in xrange(self.T):
@@ -229,12 +233,12 @@ class MPPIController:
       # x_t is output [k, poses]
       print "Here is a picture of init_state: ", init_state
       x_t = self.model(Variable(init_state.cuda()))
-      xts[t] = x_t.data
+      xts[t] += x_t.data
 
       # print "x_t before running_cost", x_t
-      print "mppi: before max x_t", torch.max(x_t)
+      print "mppi: before running_cost max x_t", torch.max(x_t)
       # Calculate costs for each of K trajectories.
-      c = self.running_cost(x_t, self.goal, self.controls[:, t], py_noise[:, :, t])
+      c = self.running_cost(xts[t], self.goal, self.controls[:, t], py_noise[:, :, t])
       print "mppi: after max x_t", torch.max(x_t)
       # print "x_t after running_cost", x_t
 
@@ -283,7 +287,7 @@ class MPPIController:
     print("MPPI: %4.5f ms" % ((time.time()-t0)*1000.0))
     run_ctrl = self.controls[:, 0]
 
-    new_poses = xts.cpu().numpy() + init_pose  # New poses are in meters
+    new_poses = xts.cpu().numpy() + curr_pose  # New poses are in meters
     # TODO: Convert to World? REMOVEEEEEEEEEEEEEEEEEEEEEEEEEE
     # Utils.map_to_world(new_poses, self.map_info)
     return run_ctrl, new_poses
@@ -315,6 +319,7 @@ class MPPIController:
     self.last_pose = curr_pose
 
     timenow = msg.header.stamp.to_sec()
+    print "timenow:", timenow, "lasttime: ", self.lasttime
     dt = timenow - self.lasttime
     self.lasttime = timenow
     nn_input = torch.cuda.FloatTensor([pose_dot[0], pose_dot[1], pose_dot[2],
@@ -378,7 +383,7 @@ def test_MPPI(mp, N, goal=np.array([0.,0.,0.])):
     nn_input = np.array([pose_dot[0], pose_dot[1], pose_dot[2],
                          np.sin(0),
                          np.cos(0), 0.0, 0.0, dt])
-    ctrl, pose = mp.mppi(init_pose=pose, init_input=nn_input)
+    ctrl, pose = mp.mppi(curr_pose=pose, init_input=nn_input)
 
     print("Now:", pose)
   print("End:", pose)
@@ -389,13 +394,14 @@ if __name__ == '__main__':
   C = 100000
   T = 30
   K = 1000
-  sigma = 1.0 # These values will need to be tuned
+  steering_sigma = 1.0 # These values will need to be tuned
+  velocity_sigma = 1.0
   _lambda = 0.01
 
   # run with ROS
   rospy.init_node("mppi_control", anonymous=True) # Initialize the node
   print "Node initialized;"
-  mp = MPPIController(C, T, K, sigma, _lambda)
+  mp = MPPIController(C, T, K, steering_sigma, velocity_sigma, _lambda)
   rospy.spin()
 
   # test & DEBUG
