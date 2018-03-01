@@ -163,7 +163,7 @@ class ParticleFilter(object):
     # Publishes a PoseStamped message indicating the expected pose of the car
     pose_stamped = PoseStamped()
     pose_stamped.header.frame_id = "map"
-    pose_stamped.header.stamp = rospy.Time()
+    pose_stamped.header.stamp = rospy.Time.now()
 
     pose_stamped.pose.position.x = expected_pose[0]
     pose_stamped.pose.position.y = expected_pose[1]
