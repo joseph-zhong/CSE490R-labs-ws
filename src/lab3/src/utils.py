@@ -27,6 +27,7 @@ def rotation_matrix(theta):
     return np.matrix([[c, -s], [s, c]])
 
 def particle_to_posestamped(particle, frame_id):
+    # print "utils: particle_to_posestamped: particles", particle
     pose = PoseStamped()
     pose.header = make_header(frame_id)
     pose.pose.position.x = particle[0]
@@ -35,6 +36,7 @@ def particle_to_posestamped(particle, frame_id):
     return pose
 
 def particle_to_pose(particle):
+    # print "utils: particle_to_pose: particles", particle
     pose = Pose()
     pose.position.x = particle[0]
     pose.position.y = particle[1]

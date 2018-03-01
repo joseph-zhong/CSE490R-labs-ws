@@ -166,6 +166,7 @@ class MPPIController:
     :param init_input: Input to model.
       Network input can be:
         [ xdot, ydot, thetadot, sin(theta), cos(theta), vel, delta, dt ]
+    :return run_ctrl [v, d] and poses as [k, t, 3]
     """
     t0 = time.time()
 
@@ -189,25 +190,64 @@ class MPPIController:
     init_state = init + th_init_input
     print "init_state", init_state.shape
 
+    xts = torch.cuda.FloatTensor(self.T, self.K, 3).zero_()
     # Perform rollouts with those controls from your current pose
     cost = torch.cuda.FloatTensor(self.K, 1).zero_()
-    x_t_0 = None
+
+    # Plotting helpers.
+    import matplotlib.cm as cm
+    x_plot = []
+    y_plot = []
+    colors = cm.rainbow(np.linspace(0, 1, self.T))
+    # from matplotlib import colors
+    # import random
+    # clist = [i for i in colors.ColorConverter.colors if i != 'w']
+    # color = (i for i in random.sample(clist, (len(clist))))
+    st_time = time.time()
     for t in xrange(self.T):
       init_state[:, 5] = noisy_control[t, 0, :]
       init_state[:, 6] = noisy_control[t, 1, :]
 
       # Model was trained on [b, 8] inputs.
-      # x_t is output [k, poses].
+      # x_t is output [k, poses]
+      # print "Here is a picture of init_state: ", init_state
+      s_time = time.time()
       x_t = self.model(Variable(init_state.cuda()))
-      if x_t_0 is None:
-        x_t_0 = x_t
+      print "MPPI model call CPU time", time.time() - s_time
+      # print "Here are the rollouts for this t", x_t
+      # TODO TODO TODO TODO TODO TODO TODO TODO make sure this is correct! It should be!
+      if t > 0:
+        xts[t] += x_t.data + xts[t-1]
+      else:
+        xts[t] += x_t.data
 
+      # x_plot += list(x_t[:, 0])
+      # y_plot += list(x_t[:, 1])
+      # if t == 0 or t == 10 or t == 20 or t == 25:
+      # plt.scatter(list(x_t[:, 0]), list(x_t[:, 1]), c=colors[t])
+
+      # print "x_t before running_cost", x_t
+      # print "mppi: before running_cost max x_t", torch.max(x_t)
       # Calculate costs for each of K trajectories.
-      c = self.running_cost(x_t, self.goal, self.controls[:, t], py_noise[:, :, t])
+      s_time = time.time()
+      c = self.running_cost(xts[t], self.goal, self.controls[:, t], py_noise[:, :, t])
+      print "MPPI Running cost CPU time: ", time.time() - s_time
+      # print "The cost vector for this t is :", c
+      # print "mppi: after max x_t", torch.max(x_t)
+      # print "x_t after running_cost", x_t
 
       cost += c.unsqueeze(1)
-      print "c: ", c
+      # print "c: ", c
+    print xts[0]
+    print xts[29]
 
+    # Debugging Plot of the rollout.
+    # plt.scatter(x_plot, y_plot)
+    # plt.ylim(-2, 2)
+    # plt.xlim(-2, 2)
+    # plt.show()
+
+    print "MPPI Time iteration CPU time: ", time.time() - st_time
     min_cost = torch.min(cost)
     # print "min_cost", min_cost
 
@@ -224,6 +264,7 @@ class MPPIController:
     weights = weights.squeeze()
     # print "normalizer", normalizer
     # print "weights", weights
+
     for t in xrange(self.T):
       st_noises = torch.cuda.FloatTensor(noisy_control[t][0])
       vel_noises = torch.cuda.FloatTensor(noisy_control[t][1])
@@ -252,12 +293,13 @@ class MPPIController:
 
     print("MPPI: %4.5f ms" % ((time.time()-t0)*1000.0))
     run_ctrl = self.controls[:, 0]
-    new_poses = init_pose + x_t_0.data
+    new_poses = xts.cpu().numpy() # New poses are in meters
     return run_ctrl, new_poses
 
   def mppi_cb(self, msg):
     #print("callback")
     if self.last_pose is None:
+      print "MPPI: mppi_cb: LAST POSE IS NONE"
       self.last_pose = torch.cuda.FloatTensor([msg.pose.position.x,
                                  msg.pose.position.y,
                                  Utils.quaternion_to_angle(msg.pose.orientation)])
@@ -274,6 +316,7 @@ class MPPIController:
 
     pose_dot = curr_pose - self.last_pose # get state
     self.last_pose = curr_pose
+    print "setting last pose as curr_pose"
 
     timenow = msg.header.stamp.to_sec()
     dt = timenow - self.lasttime
@@ -281,8 +324,9 @@ class MPPIController:
     nn_input = np.array([pose_dot[0], pose_dot[1], pose_dot[2],
                          np.sin(theta),
                          np.cos(theta), 0.0, 0.0, dt])
-
+    s_time = time.time()
     run_ctrl, poses = self.mppi(curr_pose, nn_input)
+    print "mppi_cb: mppi call time:", time.time() - s_time
 
     self.send_controls( run_ctrl[0], run_ctrl[1] )
 
@@ -290,7 +334,10 @@ class MPPIController:
     self.controls[:, -1] = 0.0
     # print "controls", self.controls
 
+    print "mppi_cb poses before visualizing"
+    v_time = time.time()
     self.visualize(poses)
+    print "visualize CPU time", time.time() - v_time
 
   def send_controls(self, speed, steer):
     print("Speed:", speed, "Steering:", steer)
@@ -303,9 +350,22 @@ class MPPIController:
 
   # Publish some paths to RVIZ to visualize rollouts
   def visualize(self, poses):
-    if self.path_pub.get_num_connections() > 0:
+    """ Visualizes the poses to RVIZ at `/mppi/paths`
+    :param poses: Should be shape (K, T, 3)
+    """
+    poses_c = poses
+    # poses_c = np.reshape(poses_c, (self.K, self.T, 3))
+    poses_c = np.transpose(poses_c, axes=(1, 0, 2))
+    print "(visualize) self.num_viz_paths", self.num_viz_paths
+    print "(visualize) poses_c shape", poses_c.shape
+    print "(visualize) poses_c[0]", type(poses_c[0])
+    # print "visualizing poses_c", poses_c
+    num_connections = self.path_pub.get_num_connections()
+    print "(visualize) num_connections:", num_connections
+    if num_connections > 0:
       frame_id = 'map'
-      for i in range(0, self.num_viz_paths):
+      for i in range(self.num_viz_paths):
+        # print "(visualize) i value: ", i, "poses_c[i,:,:]", poses_c[i,:,:]
         pa = Path()
         pa.header = Utils.make_header(frame_id)
         pa.poses = map(Utils.particle_to_posestamped, poses[i,:,:], [frame_id]*self.T)
@@ -344,8 +404,12 @@ if __name__ == '__main__':
   print "Entered Main"
   C = 100000
   T = 30
-  K = 1000
-  sigma = 1.0 # These values will need to be tuned
+  K = 10
+  # (T = 40, K = 2000)
+  steering_sigma = 0.15 # These values will need to be tuned
+  velocity_sigma = 0.5
+  # steering_sigma = 0.0001  # These values will need to be tuned
+  # velocity_sigma = 0.0005
   _lambda = 0.01
 
   # run with ROS

@@ -186,38 +186,42 @@ D_in, H, D_out = INPUT_SIZE, 96, OUTPUT_SIZE
 # model = torch
 
 model = MotionModel(D_in, H, H // 2, D_out).cuda()  # Remove cuda for CPU training
-# loss_fn = torch.nn.MSELoss(size_average=False)
-loss_fn = torch.nn.SmoothL1Loss(size_average=False)
+loss_fn = torch.nn.MSELoss(size_average=False)
+# loss_fn = torch.nn.SmoothL1Loss(size_average=False)
 learning_rate = 1e-3
 opt = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
 
+num_samples = x_datas.shape[0]
+rand_idx = np.random.permutation(num_samples)
+x_d = x_datas[rand_idx,:]
+y_d = y_datas[rand_idx,:]
+split = int(0.9*num_samples)
+x_tr = x_d[:split]
+y_tr = y_d[:split]
+x_tt = x_d[split:]
+y_tt = y_d[split:]
+
+x = torch.from_numpy(x_tr.astype('float32')).type(dtype)
+y = torch.from_numpy(y_tr.astype('float32')).type(dtype)
+x_val = torch.from_numpy(x_tt.astype('float32')).type(dtype)
+y_val = torch.from_numpy(y_tt.astype('float32')).type(dtype)
+
+
 # Shuffle the data after every pass.
 def shuffleData():
-    num_samples = x_datas.shape[0]
+    num_samples = x.shape[0] // 50
     rand_idx = np.random.permutation(num_samples)
-    x_d = x_datas[rand_idx,:]
-    y_d = y_datas[rand_idx,:]
-    split = int(0.9*num_samples)
-    x_tr = x_d[:split]
-    y_tr = y_d[:split]
-    x_tt = x_d[split:]
-    y_tt = y_d[split:]
-
-    x = torch.from_numpy(x_tr.astype('float32')).type(dtype)
-    y = torch.from_numpy(y_tr.astype('float32')).type(dtype)
-    x_val = torch.from_numpy(x_tt.astype('float32')).type(dtype)
-    y_val = torch.from_numpy(y_tt.astype('float32')).type(dtype)
-
-
-    return x, x_val, y, y_val
+    x_s = x[rand_idx,:]
+    y_s = y[rand_idx,:]
+    return x_s, y_s
 
 
 def doTraining(model, filename, optimizer, N=5000):
+    x_s, y_s = shuffleData()  # Random mini-batch
     for t in range(N):
-        x, x_val, y, y_val = shuffleData()  # Random mini-batch
-        y_pred = model(Variable(x))
-        loss = loss_fn(y_pred, Variable(y, requires_grad=False))
+        y_pred = model(Variable(x_s))
+        loss = loss_fn(y_pred, Variable(y_s, requires_grad=False))
         if t % 50 == 0:
             val = model(Variable(x_val))
             vloss = loss_fn(val, Variable(y_val, requires_grad=False))
@@ -230,7 +234,7 @@ def doTraining(model, filename, optimizer, N=5000):
     torch.save(model, filename)
 
 if len(sys.argv) > 2:
-    doTraining(model, sys.argv[2], opt, N=5000)
+    doTraining(model, sys.argv[2], opt, N=25000)
 
 
 # The following are functions meant for debugging and sanity checking your
