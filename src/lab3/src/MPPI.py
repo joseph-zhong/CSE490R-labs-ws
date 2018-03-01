@@ -265,8 +265,6 @@ class MPPIController:
       # Model was trained on [b, 8] inputs.
       # x_t is output [k, poses]
       print "Here is a picture of init_state: ", init_state
-      init_state[: , 4] = 1
-      init_state[:, 3] = 0
       x_t = self.model(Variable(init_state.cuda()))
       print "Here are the rollouts for this t", x_t
       xts[t] += x_t.data
