@@ -216,10 +216,10 @@ class MPPIController:
       print "MPPI model call CPU time", time.time() - s_time
       # print "Here are the rollouts for this t", x_t
       # TODO TODO TODO TODO TODO TODO TODO TODO make sure this is correct! It should be!
-      if t > 0:
-        xts[t] += x_t.data + xts[t-1]
+      if t == 0:
+        xts[t] = x_t.data + init_pose
       else:
-        xts[t] += x_t.data
+        xts[t] = x_t.data + xts[t-1]
 
       # x_plot += list(x_t[:, 0])
       # y_plot += list(x_t[:, 1])
