@@ -70,9 +70,10 @@ class MPPIController:
 
     # We will publish control messages and a way to visualize a subset of our
     # rollouts, much like the particle filter
-    self.ctrl_pub = rospy.Publisher(rospy.get_param("~ctrl_topic", "/vesc/high_level/ackermann_cmd_mux/input/nav0"),
+    self.ctrl_pub = rospy.Publisher(rospy.get_param("~ctrl_topic",
+            "/vesc/high_level/ackermann_cmd_mux/input/nav0"),
             AckermannDriveStamped, queue_size=2)
-    self.path_pub = rospy.Publisher("/mppi/paths", Path, queue_size = self.num_viz_paths)
+    self.path_pub = rospy.Publisher("/mppi/paths", Path, queue_size=self.num_viz_paths)
 
     # Use the 'static_map' service (launched by MapServer.launch) to get the map
     map_service_name = rospy.get_param("~static_map", "static_map")
@@ -194,16 +195,16 @@ class MPPIController:
 
     # bounds_check = torch.cuda.FloatTensor(self.C * self.permissible_region[y_bounds, x_bounds])
     bounds_check_c = self.C * self.permissible_region[pose_c[:, 1].astype(np.int), pose_c[:, 0].astype(np.int)]
-    print "The number of particles outside the permissible region = ",  np.sum(self.permissible_region[pose_c[:, 1].astype(np.int), pose_c[:, 0].astype(np.int)])
     # ctrl = ctrl.unsqueeze(1)  # Extend from (2,) to (2, 1) to allow matrix multiply
     ctrl_c = np.expand_dims(ctrl_c, 1)
     # ctrl_cost = self._lambda * torch.mm(noise, ctrl) / self.steering_sigma
     ctrl_cost = self._lambda * np.matmul(noise_c, ctrl_c) / self.steering_sigma
     ctrl_cost = ctrl_cost.squeeze()
 
+    print "The number of particles outside the permissible region = ",  np.sum(self.permissible_region[pose_c[:, 1].astype(np.int), pose_c[:, 0].astype(np.int)])
     print "(running_cost) max bounds_check", np.max(bounds_check_c)
-    print "(running_cost) max ctrl_cost", np.max(ctrl_cost)
-    print "(running_cost) max pose_cost", np.max(pose_cost)
+    print "(running_cost) max ctrl_cost", np.max(ctrl_cost), "mean ctrl cost", np.mean(ctrl_cost), "min ctrl cost", np.min(ctrl_cost)
+    print "(running_cost) max pose_cost", np.max(pose_cost), "mean pose cost", np.mean(pose_cost), "min pose cost", np.min(pose_cost)
 
     return torch.cuda.FloatTensor(pose_cost + ctrl_cost + bounds_check_c) # Returns vector of shape (K,)
 
@@ -229,9 +230,9 @@ class MPPIController:
     print "The max of the vel noise is: ", np.max(vel_noise)
     noise = np.concatenate((vel_noise, delta_noise), axis=1)
     py_noise = torch.cuda.FloatTensor(noise)
-    print "Controls before adding to py_noise:", self.controls
+    # print "Controls before adding to py_noise:", self.controls
     noisy_control = py_noise + self.controls
-    print "Noisy Controls before capping:", noisy_control
+    # print "Noisy Controls before capping:", noisy_control
     noisy_control[:, 1, :][noisy_control[:, 1, :] >= MAX_ANGLE] = MAX_ANGLE
     noisy_control[:, 1, :][noisy_control[:, 1, :] <= -MAX_ANGLE] = -MAX_ANGLE
     noisy_control[:, 0, :][noisy_control[:, 0, :] >= MAX_VEL] = MAX_VEL
@@ -256,8 +257,15 @@ class MPPIController:
     # Perform rollouts with those controls from your current pose
     cost = torch.cuda.FloatTensor(self.K, 1).zero_()
 
+    # Plotting helpers.
+    import matplotlib.cm as cm
     x_plot = []
     y_plot = []
+    colors = cm.rainbow(np.linspace(0, 1, self.T))
+    # from matplotlib import colors
+    # import random
+    # clist = [i for i in colors.ColorConverter.colors if i != 'w']
+    # color = (i for i in random.sample(clist, (len(clist))))
     for t in xrange(self.T):
       init_state[:, 5] = noisy_control[t, 0, :]
       init_state[:, 6] = noisy_control[t, 1, :]
@@ -269,8 +277,10 @@ class MPPIController:
       print "Here are the rollouts for this t", x_t
       xts[t] += x_t.data
 
-      x_plot += list(x_t[:, 0])
-      y_plot += list(x_t[:, 1])
+      # x_plot += list(x_t[:, 0])
+      # y_plot += list(x_t[:, 1])
+      # if t == 0 or t == 10 or t == 20 or t == 25:
+      plt.scatter(list(x_t[:, 0]), list(x_t[:, 1]), c=colors[t])
 
       # print "x_t before running_cost", x_t
       print "mppi: before running_cost max x_t", torch.max(x_t)
@@ -283,8 +293,11 @@ class MPPIController:
       cost += c.unsqueeze(1)
       # print "c: ", c
 
-    plt.scatter(x_plot, y_plot)
-    plt.show()
+    # Debugging Plot of the rollout.
+    # plt.scatter(x_plot, y_plot)
+    # plt.ylim(-2, 2)
+    # plt.xlim(-2, 2)
+    # plt.show()
 
     min_cost = torch.min(cost)
     print "min_cost:", min_cost
@@ -331,12 +344,10 @@ class MPPIController:
     # reasonable amount of calculations done (T = 40, K = 2000) within the 100ms
     # between inferred-poses from the particle filter.
 
-    print("MPPI: %4.5f ms" % ((time.time()-t0)*1000.0))
+    print("MPPI Compute Time: %4.5f ms" % ((time.time()-t0)*1000.0))
     run_ctrl = self.controls[:, 0]
 
     new_poses = xts.cpu().numpy() + curr_pose  # New poses are in meters
-    # TODO: Convert to World? REMOVEEEEEEEEEEEEEEEEEEEEEEEEEE
-    # Utils.map_to_world(new_poses, self.map_info)
     return run_ctrl, new_poses
 
   def mppi_cb(self, msg):
@@ -398,14 +409,28 @@ class MPPIController:
 
   # Publish some paths to RVIZ to visualize rollouts
   def visualize(self, poses):
-    # print "visualizing poses", poses
-    if self.path_pub.get_num_connections() > 0:
+    """ Visualizes the poses to RVIZ at `/mppi/paths`
+    :param poses: Should be shape (K, T, 3)
+    """
+    poses_c = poses.cpu().numpy()
+    # poses_c = np.reshape(poses_c, (self.K, self.T, 3))
+    poses_c = np.transpose(poses_c, axes=(1, 0, 2))
+    print "(visualize) self.num_viz_paths", self.num_viz_paths
+    print "(visualize) poses_c shape", poses_c.shape
+    print "(visualize) poses_c[0]", type(poses_c[0])
+    # print "visualizing poses_c", poses_c
+    num_connections = self.path_pub.get_num_connections()
+    print "(visualize) num_connections:", num_connections
+    if num_connections > 0:
       frame_id = 'map'
-      for i in range(0, self.num_viz_paths):
+      for i in range(self.num_viz_paths):
+        print "(visualize) i value: ", i, "poses_c[i,:,:]", poses_c[i,:,:]
         pa = Path()
         pa.header = Utils.make_header(frame_id)
-        pa.poses = map(Utils.particle_to_posestamped, poses[i,:,:], [frame_id]*self.T)
+        pa.poses = map(Utils.particle_to_posestamped, poses_c[i,:,:], [frame_id]*self.T)
         self.path_pub.publish(pa)
+    else:
+      print "(visualize) Not visualizing poses!"
 
 def test_MPPI(mp, N, goal=np.array([0.,0.,0.])):
   print "Testing MPPI"
@@ -440,9 +465,12 @@ if __name__ == '__main__':
   print "Entered Main"
   C = 100000
   T = 30
-  K = 10
+  K = 1000
+  # (T = 40, K = 2000)
   steering_sigma = 0.15 # These values will need to be tuned
   velocity_sigma = 0.5
+  # steering_sigma = 0.0001  # These values will need to be tuned
+  # velocity_sigma = 0.0005
   _lambda = 0.01
 
   # run with ROS
