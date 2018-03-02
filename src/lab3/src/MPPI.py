@@ -23,7 +23,7 @@ T = 30
 K = 2000
 C = 100000
 STEERING_SIGMA = 0.15  # These values will need to be tuned
-VEL_SIGMA = 0.2
+VELOCITY_SIGMA = 0.2
 _LAMBDA = 0.1
 THETA_WEIGHT = 1.0
 
@@ -137,12 +137,14 @@ class MPPIController:
     bounds_check = self.permissible_region[y, x] * C
     bounds_check = bounds_check.float().squeeze(0)
 
-    # Unsqueeze from (2,) to (2,1) for matrix mult.
-    ctrl = ctrl.unsqueeze(1)
-    ctrl_cost = noise.mm(ctrl) * (_LAMBDA / STEERING_SIGMA)
+    # Control cost using steering and velocity sigmas.
+    ctrl = ctrl.unsqueeze(1)  # Unsqueeze from (2,) to (2,1) for matrix mult.
+    noise_ctrl_mm = noise.mm(ctrl)
+    ctrl_cost = noise_ctrl_mm * (_LAMBDA / STEERING_SIGMA)
+    ctrl_cost += noise_ctrl_mm * (_LAMBDA / VELOCITY_SIGMA)
     ctrl_cost = ctrl_cost.squeeze()  # Squeeze from (K, 1) to (K,)
 
-    return pose_cost # + ctrl_cost  # Expected (K,)
+    return pose_cost + ctrl_cost  # Expected (K,)
 
   def mppi(self, curr_pose, init_input):
     t0 = time.time()
@@ -169,7 +171,7 @@ class MPPIController:
     # python will slow down the control calculations. You should be able to keep a
     # reasonable amount of calculations done (T = 40, K = 2000) within the 100ms
     # between inferred-poses from the particle filter.
-    vel_noise = np.random.normal(loc=0.0, scale=VEL_SIGMA, size=(K, 1, T))
+    vel_noise = np.random.normal(loc=0.0, scale=VELOCITY_SIGMA, size=(K, 1, T))
     delta_noise = np.random.normal(loc=0.0, scale=STEERING_SIGMA, size=(K, 1, T))
     noise = torch.cuda.FloatTensor(np.concatenate((vel_noise, delta_noise), axis=1))
 
@@ -219,14 +221,14 @@ class MPPIController:
     # Add weighted noise to current controls.
     noise = torch.transpose(noise, 0, 2)  # (T, 2, K) allows looping over time steps
     for t in xrange(T):
-      steer_noise = torch.cuda.FloatTensor(noise[t][0])
-      vel_noise = torch.cuda.FloatTensor(noise[t][1])
+      vel_noise = torch.cuda.FloatTensor(noise[t][0])
+      steer_noise = torch.cuda.FloatTensor(noise[t][1])
 
-      steer_weighted_noise = weights.dot(steer_noise)
       vel_weighted_noise = weights.dot(vel_noise)
+      steer_weighted_noise = weights.dot(steer_noise)
 
-      self.controls[0][t] += steer_weighted_noise
-      self.controls[1][t] += vel_weighted_noise
+      self.controls[0][t] += vel_weighted_noise
+      self.controls[1][t] += steer_weighted_noise
 
 
     print("MPPI: %4.5f ms" % ((time.time() - t0) * 1000.0))
