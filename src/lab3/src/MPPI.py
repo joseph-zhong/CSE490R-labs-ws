@@ -20,12 +20,12 @@ from geometry_msgs.msg import PoseStamped, PoseArray, PoseWithCovarianceStamped,
 MAX_ANGLE = 0.34
 MAX_VEL = 2.0
 T = 30
-K = 10
+K = 4000
 C = 100000
-STEERING_SIGMA = 0.1  # These values will need to be tuned
+STEERING_SIGMA = 0.15  # These values will need to be tuned
 VEL_SIGMA = 0.2
-_LAMBDA = 1.0
-THETA_WEIGHT = 5.0
+_LAMBDA = 0.1
+THETA_WEIGHT = 1.0
 
 class MPPIController:
 
@@ -141,7 +141,7 @@ class MPPIController:
     ctrl_cost = noise.mm(ctrl) * (_LAMBDA / STEERING_SIGMA)
     ctrl_cost = ctrl_cost.squeeze()  # Squeeze from (K, 1) to (K,)
 
-    return pose_cost + ctrl_cost + bounds_check  # Expected (K,)
+    return pose_cost # + ctrl_cost  # Expected (K,)
 
   def mppi(self, curr_pose, init_input):
     t0 = time.time()
@@ -207,10 +207,34 @@ class MPPIController:
       model_input[:, 4] = np.cos(theta)
       cost += self.running_cost(self.rollouts[t], self.goal, self.controls[:, t], noise[:, :, t])
 
+
+    beta = torch.min(cost)
+    eta = torch.sum(torch.exp((cost - beta) / _LAMBDA * -1))
+
+    weights = torch.exp((cost - beta) / _LAMBDA * -1) / eta
+    weights = weights.squeeze()
+
+    print "WEIGHTS"
+    print weights
+
+    self.controls = self.controls.zero_()  # Noisy controls already contains controls!
+    for t in xrange(T):
+      steer_noise = torch.cuda.FloatTensor(noisy_controls[t][0])
+      vel_noise = torch.cuda.FloatTensor(noisy_controls[t][1])
+
+      steer_weighted_noise = weights.dot(steer_noise)
+      vel_weighted_noise = weights.dot(vel_noise)
+
+      self.controls[0][t] += steer_weighted_noise
+      self.controls[1][t] += vel_weighted_noise
+
+
+    # import pdb
+    # pdb.set_trace()
+
     print("MPPI: %4.5f ms" % ((time.time() - t0) * 1000.0))
 
     # return run_ctrl, poses
-    print "max control", torch.max(self.controls[:, 0]), torch.max(self.controls[:, 1])
     run_ctrl = self.controls[:, 0]
     poses = self.rollouts.transpose(0, 1)  # Input to particle_to_posestamped should be (K, T, 3)
 
@@ -251,6 +275,10 @@ class MPPIController:
     run_ctrl, poses = self.mppi(curr_pose, self.nn_input)
 
     self.send_controls(run_ctrl[0], run_ctrl[1])
+
+    # Shifting past controls, initializing latest control to zero.
+    self.controls[:, :-1] = self.controls[:, 1:]
+    self.controls[:, -1] = 0.0
 
     self.visualize(poses)
 
