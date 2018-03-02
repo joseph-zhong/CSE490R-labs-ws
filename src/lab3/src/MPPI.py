@@ -199,15 +199,12 @@ class MPPIController:
         self.rollouts[t] = rollout_step_delta + self.rollouts[t - 1]
 
 
-      # model_input[:, 0] = rollout_step_delta[:, 0]
-      # model_input[:, 1] = rollout_step_delta[:, 1]
-      # model_input[:, 2] = rollout_step_delta[:, 2]
-      # theta = self.rollouts[t, :, 2].clone()
-      # model_input[:, 3] = np.sin(theta)
-      # model_input[:, 4] = np.cos(theta)
-      # print "HELLO JOSEPH ZHONG ROS GODDDDDDDD"
-
-
+      model_input[:, 0] = rollout_step_delta[:, 0]
+      model_input[:, 1] = rollout_step_delta[:, 1]
+      model_input[:, 2] = rollout_step_delta[:, 2]
+      theta = self.rollouts[t, :, 2].clone()
+      model_input[:, 3] = np.sin(theta)
+      model_input[:, 4] = np.cos(theta)
       cost += self.running_cost(self.rollouts[t], self.goal, self.controls[:, t], noise[:, :, t])
 
     print("MPPI: %4.5f ms" % ((time.time() - t0) * 1000.0))
