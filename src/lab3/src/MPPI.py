@@ -210,6 +210,7 @@ class MPPIController:
     print("MPPI: %4.5f ms" % ((time.time() - t0) * 1000.0))
 
     # return run_ctrl, poses
+    print "max control", torch.max(self.controls[:, 0]), torch.max(self.controls[:, 1])
     run_ctrl = self.controls[:, 0]
     poses = self.rollouts.transpose(0, 1)  # Input to particle_to_posestamped should be (K, T, 3)
 
