@@ -48,6 +48,7 @@ class MPPIController:
     self.controls = torch.cuda.FloatTensor(2, T).zero_()
     self.rollouts = torch.cuda.FloatTensor(T, K, 3).zero_()
 
+    self.nn_input = torch.cuda.FloatTensor(8).zero_()
 
 
     model_name = rospy.get_param("~nn_model", "myneuralnetisbestneuralnet.pt")
@@ -125,29 +126,20 @@ class MPPIController:
     pose_cost[:, 2] *= THETA_WEIGHT
     pose_cost = torch.sum(pose_cost, 1)
 
-    # To unsqueeze or to not unsqueeze...
-    pose = pose.unsqueeze(0)
-    goal = goal.unsqueeze(0)
-    Utils.world_to_map(pose, self.map_info)
-    Utils.world_to_map(goal, self.map_info)
+    # Clone pose for world to map conversion.
+    pose_copy = pose.clone()
+    Utils.world_to_map(pose_copy, self.map_info)
 
     # Bounds checking: Convert coordinates to ints before indexing
-    pose = pose.squeeze()
-    goal = goal.squeeze()
-    bounds_check = C * self.permissible_region[pose[:, 1].long(), pose[:, 0].long()]
-    bounds_check = bounds_check.float()  # Map is an IntTensor
+    y = pose_copy[:, 1].long()
+    x = pose_copy[:, 0].long()
+    bounds_check = self.permissible_region[y, x] * C
+    bounds_check = bounds_check.float().squeeze(0)
 
-    ctrl = ctrl.unsqueeze(1)  # Unsqueeze from (2,) to (2,1) for matrix mult.
-    ctrl_cost = noise.mm(ctrl) * _LAMBDA / STEERING_SIGMA
-
+    # Unsqueeze from (2,) to (2,1) for matrix mult.
+    ctrl = ctrl.unsqueeze(1)
+    ctrl_cost = noise.mm(ctrl) * (_LAMBDA / STEERING_SIGMA)
     ctrl_cost = ctrl_cost.squeeze()  # Squeeze from (K, 1) to (K,)
-
-    pose = pose.unsqueeze(0)
-    goal = goal.unsqueeze(0)
-    Utils.map_to_world(pose, self.map_info)
-    Utils.map_to_world(goal, self.map_info)
-    pose = pose.squeeze()
-    goal = goal.squeeze()
 
     return pose_cost + ctrl_cost + bounds_check  # Expected (K,)
 
@@ -186,14 +178,16 @@ class MPPIController:
     noisy_controls[:, 1, :] = torch.clamp(noisy_controls[:, 1, :], -MAX_ANGLE, MAX_ANGLE)
 
     noisy_controls = torch.transpose(noisy_controls, 0, 2)
+
     model_input = torch.cuda.FloatTensor(K, 8).zero_()
     model_input += init_input
     cost = torch.cuda.FloatTensor(K, 1).zero_()
 
+    self.rollouts *= 0
     for t in xrange(T):
       model_input[:, 5] = noisy_controls[t, 0, :]
       model_input[:, 6] = noisy_controls[t, 1, :]
-      print "Model shape:", model_input.shape
+
       rollout_step_delta = self.model(Variable(model_input))
 
       # Extract the tensor
@@ -204,11 +198,15 @@ class MPPIController:
       else:
         self.rollouts[t] = rollout_step_delta + self.rollouts[t - 1]
 
-      model_input[:, 0] = rollout_step_delta[:, 0]
-      model_input[:, 1] = rollout_step_delta[:, 1]
-      model_input[:, 2] = rollout_step_delta[:, 2]
-      model_input[:, 3] = torch.sin(self.rollouts[t, :, 2])
-      model_input[:, 4] = torch.cos(self.rollouts[t, :, 2])
+
+      # model_input[:, 0] = rollout_step_delta[:, 0]
+      # model_input[:, 1] = rollout_step_delta[:, 1]
+      # model_input[:, 2] = rollout_step_delta[:, 2]
+      # theta = self.rollouts[t, :, 2].clone()
+      # model_input[:, 3] = np.sin(theta)
+      # model_input[:, 4] = np.cos(theta)
+      # print "HELLO JOSEPH ZHONG ROS GODDDDDDDD"
+
 
       cost += self.running_cost(self.rollouts[t], self.goal, self.controls[:, t], noise[:, :, t])
 
@@ -243,11 +241,16 @@ class MPPIController:
     timenow = msg.header.stamp.to_sec()
     dt = timenow - self.lasttime
     self.lasttime = timenow
-    nn_input = torch.cuda.FloatTensor([pose_dot[0], pose_dot[1], pose_dot[2],
-                         np.sin(theta),
-                         np.cos(theta), 0.0, 0.0, dt])
+    self.nn_input[0] = pose_dot[0]
+    self.nn_input[1] = pose_dot[1]
+    self.nn_input[2] = pose_dot[2]
+    self.nn_input[3] = np.sin(theta)
+    self.nn_input[4] = np.cos(theta)
+    self.nn_input[5] = 0.0
+    self.nn_input[6] = 0.0
+    self.nn_input[7] = dt
 
-    run_ctrl, poses = self.mppi(curr_pose, nn_input)
+    run_ctrl, poses = self.mppi(curr_pose, self.nn_input)
 
     self.send_controls(run_ctrl[0], run_ctrl[1])
 
