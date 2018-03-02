@@ -180,7 +180,7 @@ class MPPIController:
 
     noisy_controls = torch.transpose(noisy_controls, 0, 2)
 
-    model_input = torch.cuda.FloatTensor(K, 8).zero_()
+    model_input = torch.cuda.FloatTensor(K, 8).zero_()  # TODO: Allocate in init.
     model_input += init_input
     cost = torch.cuda.FloatTensor(K, 1).zero_()
 
@@ -214,12 +214,11 @@ class MPPIController:
     eta = torch.sum(torch.exp((cost - beta) / _LAMBDA * -1))
 
     weights = torch.exp((cost - beta) / _LAMBDA * -1) / eta
-    weights = weights.squeeze()
+    weights = weights.squeeze()  # Squeeze allows matrix multiply
 
-    # print "WEIGHTS"
-    # print weights
-
-    for t in xrange(T):  # Add weighted noise to current controls.
+    # Add weighted noise to current controls.
+    noise = torch.transpose(noise, 0, 2)  # (T, 2, K) allows looping over time steps
+    for t in xrange(T):
       steer_noise = torch.cuda.FloatTensor(noise[t][0])
       vel_noise = torch.cuda.FloatTensor(noise[t][1])
 
