@@ -186,9 +186,9 @@ D_in, H, D_out = INPUT_SIZE, 96, OUTPUT_SIZE
 # model = torch
 
 model = MotionModel(D_in, H, H // 2, D_out).cuda()  # Remove cuda for CPU training
-loss_fn = torch.nn.MSELoss(size_average=False)
-# loss_fn = torch.nn.SmoothL1Loss(size_average=False)
-learning_rate = 1e-3
+# loss_fn = torch.nn.MSELoss(size_average=False)
+loss_fn = torch.nn.SmoothL1Loss(size_average=False)
+learning_rate = 5e-4
 opt = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
 
@@ -210,7 +210,7 @@ y_val = torch.from_numpy(y_tt.astype('float32')).type(dtype)
 
 # Shuffle the data after every pass.
 def shuffleData():
-    num_samples = x.shape[0] // 50
+    num_samples = x.shape[0] // 20
     rand_idx = np.random.permutation(num_samples)
     x_s = x[rand_idx,:]
     y_s = y[rand_idx,:]
@@ -234,7 +234,7 @@ def doTraining(model, filename, optimizer, N=5000):
     torch.save(model, filename)
 
 if len(sys.argv) > 2:
-    doTraining(model, sys.argv[2], opt, N=25000)
+    doTraining(model, sys.argv[2], opt, N=15000)
 
 
 # The following are functions meant for debugging and sanity checking your

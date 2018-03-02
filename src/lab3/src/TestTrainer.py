@@ -45,8 +45,8 @@ def main():
 
     # Set axes
     axes = plt.gca()
-    axes.set_xlim([-5, 5])
-    axes.set_ylim([-5, 5])
+    axes.set_xlim([-4, 4])
+    axes.set_ylim([-4, 4])
 
     forward_rollout = perform_rollout(model, N)
     x_f = forward_rollout[:, 0]
@@ -69,8 +69,9 @@ def main():
     y_r = right_rollout[:, 1]
     plt.plot(x_r, y_r, 'b-')
 
-
     plt.show()
+
+    # plt.savefig("rollouts_mse_loss.png")
 
 
 

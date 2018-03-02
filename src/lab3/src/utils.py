@@ -2,6 +2,7 @@
 
 import rospy
 import numpy as np
+import torch
 
 from std_msgs.msg import Header
 from visualization_msgs.msg import Marker
@@ -27,7 +28,6 @@ def rotation_matrix(theta):
     return np.matrix([[c, -s], [s, c]])
 
 def particle_to_posestamped(particle, frame_id):
-    # print "utils: particle_to_posestamped: particles", particle
     pose = PoseStamped()
     pose.header = make_header(frame_id)
     pose.pose.position.x = particle[0]
@@ -36,7 +36,6 @@ def particle_to_posestamped(particle, frame_id):
     return pose
 
 def particle_to_pose(particle):
-    # print "utils: particle_to_pose: particles", particle
     pose = Pose()
     pose.position.x = particle[0]
     pose.position.y = particle[1]
@@ -72,9 +71,9 @@ def map_to_world(poses,map_info):
     # rotation
     c, s = np.cos(angle), np.sin(angle)
     # we need to store the x coordinates since they will be overwritten
-    temp = np.copy(poses[:,0])
-    poses[:,0] = c*poses[:,0] - s*poses[:,1]
-    poses[:,1] = s*temp       + c*poses[:,1]
+    temp = poses[:,0].clone()
+    poses[:,0] = poses[:,0]*c - poses[:,1]*s
+    poses[:,1] = temp*s       + poses[:,1]*c
 
     # scale
     poses[:,:2] *= float(scale)
@@ -100,8 +99,8 @@ def world_to_map(poses, map_info):
     # rotation
     c, s = np.cos(angle), np.sin(angle)
     # we need to store the x coordinates since they will be overwritten
-    temp = np.copy(poses[:,0])
-    poses[:,0] = c*poses[:,0] - s*poses[:,1]
-    poses[:,1] = s*temp       + c*poses[:,1]
+    temp = poses[:,0].clone()
+    poses[:,0] = poses[:,0]*c - poses[:,1]*s
+    poses[:,1] = temp*s       + poses[:,1]*c
     poses[:,2] += angle
 
