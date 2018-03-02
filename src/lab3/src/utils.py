@@ -2,6 +2,7 @@
 
 import rospy
 import numpy as np
+import torch
 
 from std_msgs.msg import Header
 from visualization_msgs.msg import Marker
@@ -70,9 +71,9 @@ def map_to_world(poses,map_info):
     # rotation
     c, s = np.cos(angle), np.sin(angle)
     # we need to store the x coordinates since they will be overwritten
-    temp = np.copy(poses[:,0])
-    poses[:,0] = c*poses[:,0] - s*poses[:,1]
-    poses[:,1] = s*temp       + c*poses[:,1]
+    temp = poses[:,0].clone()
+    poses[:,0] = poses[:,0]*c - poses[:,1]*s
+    poses[:,1] = temp*s       + poses[:,1]*c
 
     # scale
     poses[:,:2] *= float(scale)
@@ -98,8 +99,8 @@ def world_to_map(poses, map_info):
     # rotation
     c, s = np.cos(angle), np.sin(angle)
     # we need to store the x coordinates since they will be overwritten
-    temp = np.copy(poses[:,0])
-    poses[:,0] = c*poses[:,0] - s*poses[:,1]
-    poses[:,1] = s*temp       + c*poses[:,1]
+    temp = poses[:,0].clone()
+    poses[:,0] = poses[:,0]*c - poses[:,1]*s
+    poses[:,1] = temp*s       + poses[:,1]*c
     poses[:,2] += angle
 
