@@ -20,10 +20,10 @@ from geometry_msgs.msg import PoseStamped, PoseArray, PoseWithCovarianceStamped,
 MAX_ANGLE = 0.34
 MAX_VEL = 2.0
 T = 30
-K = 2000
+K = 1000
 C = 100000
 STEERING_SIGMA = 0.15  # These values will need to be tuned
-VELOCITY_SIGMA = 0.2
+VELOCITY_SIGMA = 0.4
 _LAMBDA = 0.1
 THETA_WEIGHT = 1.0
 
@@ -47,7 +47,8 @@ class MPPIController:
     # possible for arrays storing your controls or calculated MPPI costs, etc
     self.controls = torch.cuda.FloatTensor(2, T).zero_()
     self.rollouts = torch.cuda.FloatTensor(T, K, 3).zero_()
-
+    self.model_input = torch.cuda.FloatTensor(K, 8).zero_()
+    self.cost = torch.cuda.FloatTensor(K, 1).zero_()
     self.nn_input = torch.cuda.FloatTensor(8).zero_()
 
 
@@ -144,7 +145,7 @@ class MPPIController:
     ctrl_cost += noise_ctrl_mm * (_LAMBDA / VELOCITY_SIGMA)
     ctrl_cost = ctrl_cost.squeeze()  # Squeeze from (K, 1) to (K,)
 
-    return pose_cost + ctrl_cost  # Expected (K,)
+    return pose_cost #+ ctrl_cost  # Expected (K,)
 
   def mppi(self, curr_pose, init_input):
     t0 = time.time()
@@ -182,17 +183,17 @@ class MPPIController:
 
     noisy_controls = torch.transpose(noisy_controls, 0, 2)
 
-    model_input = torch.cuda.FloatTensor(K, 8).zero_()  # TODO: Allocate in init.
-    model_input += init_input
-    cost = torch.cuda.FloatTensor(K, 1).zero_()
-
+    self.model_input *= 0  # Re-initialize model input
+    self.model_input += init_input
+    self.cost *= 0  # Zero out cost vector
     self.rollouts *= 0
+
     for t in xrange(T):
-      model_input[:, 5] = noisy_controls[t, 0, :]
-      model_input[:, 6] = noisy_controls[t, 1, :]
+      self.model_input[:, 5] = noisy_controls[t, 0, :]
+      self.model_input[:, 6] = noisy_controls[t, 1, :]
 
       # Perform a forward pass using perturbed controls
-      rollout_step_delta = self.model(Variable(model_input))
+      rollout_step_delta = self.model(Variable(self.model_input))
 
       # Extract the tensor
       rollout_step_delta = rollout_step_delta.data
@@ -203,19 +204,18 @@ class MPPIController:
         self.rollouts[t] = rollout_step_delta + self.rollouts[t - 1]
 
 
-      model_input[:, 0] = rollout_step_delta[:, 0]
-      model_input[:, 1] = rollout_step_delta[:, 1]
-      model_input[:, 2] = rollout_step_delta[:, 2]
+      self.model_input[:, 0] = rollout_step_delta[:, 0]
+      self.model_input[:, 1] = rollout_step_delta[:, 1]
+      self.model_input[:, 2] = rollout_step_delta[:, 2]
       theta = self.rollouts[t, :, 2].clone()
-      model_input[:, 3] = np.sin(theta)
-      model_input[:, 4] = np.cos(theta)
-      cost += self.running_cost(self.rollouts[t], self.goal, self.controls[:, t], noise[:, :, t])
+      self.model_input[:, 3] = np.sin(theta)
+      self.model_input[:, 4] = np.cos(theta)
+      self.cost += self.running_cost(self.rollouts[t], self.goal, self.controls[:, t], noise[:, :, t])
 
+    beta = torch.min(self.cost)
+    eta = torch.sum(torch.exp((self.cost - beta) / _LAMBDA * -1))
 
-    beta = torch.min(cost)
-    eta = torch.sum(torch.exp((cost - beta) / _LAMBDA * -1))
-
-    weights = torch.exp((cost - beta) / _LAMBDA * -1) / eta
+    weights = torch.exp((self.cost - beta) / _LAMBDA * -1) / eta
     weights = weights.squeeze()  # Squeeze allows matrix multiply
 
     # Add weighted noise to current controls.
@@ -231,6 +231,8 @@ class MPPIController:
       self.controls[1][t] += steer_weighted_noise
 
 
+    self.controls[0, :] = torch.clamp(self.controls[0, :], -MAX_VEL, MAX_VEL)
+    self.controls[1, :] = torch.clamp(self.controls[1, :], -MAX_ANGLE, MAX_ANGLE)
     print("MPPI: %4.5f ms" % ((time.time() - t0) * 1000.0))
 
     run_ctrl = self.controls[:, 0]
@@ -275,11 +277,9 @@ class MPPIController:
     self.send_controls(run_ctrl[0], run_ctrl[1])
 
     # Shifting past controls, duplicating previous final controls.
-    temp = self.controls[:, -1].clone()
     self.controls[:, :-1] = self.controls[:, 1:]
-    self.controls[:, -1] = temp
 
-    self.visualize(poses)
+    # self.visualize(poses)
 
   def send_controls(self, speed, steer):
     print("Speed:", speed, "Steering:", steer)
