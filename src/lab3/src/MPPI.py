@@ -20,7 +20,7 @@ from geometry_msgs.msg import PoseStamped, PoseArray, PoseWithCovarianceStamped,
 MAX_ANGLE = 0.34
 MAX_VEL = 2.0
 T = 30
-K = 4000
+K = 2000
 C = 100000
 STEERING_SIGMA = 0.15  # These values will need to be tuned
 VEL_SIGMA = 0.2
@@ -69,7 +69,8 @@ class MPPIController:
 
     # We will publish control messages and a way to visualize a subset of our
     # rollouts, much like the particle filter
-    self.ctrl_pub = rospy.Publisher(rospy.get_param("~ctrl_topic", "/vesc/high_level/ackermann_cmd_mux/input/nav0"),
+    self.ctrl_pub = rospy.Publisher(rospy.get_param("~ctrl_topic",
+      "/vesc/high_level/ackermann_cmd_mux/input/nav_0"),
                                     AckermannDriveStamped, queue_size=2)
     self.path_pub = rospy.Publisher("/mppi/paths", Path, queue_size=self.num_viz_paths)
 
@@ -214,8 +215,8 @@ class MPPIController:
     weights = torch.exp((cost - beta) / _LAMBDA * -1) / eta
     weights = weights.squeeze()
 
-    print "WEIGHTS"
-    print weights
+    # print "WEIGHTS"
+    # print weights
 
     self.controls = self.controls.zero_()  # Noisy controls already contains controls!
     for t in xrange(T):
