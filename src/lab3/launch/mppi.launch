@@ -3,7 +3,7 @@
 
     <!--<include file="$(find lab3)/launch/MapServer.launch"/>-->
 
-	<arg name="ctrl_topic" default="/vesc/high_level/ackermann_cmd_mux/input/nav0"/>
+	<arg name="ctrl_topic" default="/vesc/high_level/ackermann_cmd_mux/input/nav_0"/>
 	<arg name="static_map" default="static_map"/>
 	<!--<arg name="nn_model" default="weights.th"/>-->
 	<arg name="nn_model" default="/home/nvidia/catkin_ws/src/lab3/src/model.th"/>
