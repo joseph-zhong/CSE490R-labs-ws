@@ -21,14 +21,14 @@ MAX_ANGLE = 0.34
 MAX_VEL = 2.0
 T = 30
 K = 1000
-C = 100000
-STEERING_SIGMA = 0.15  # These values will need to be tuned
-VELOCITY_SIGMA = 0.4
+C = 1000000
+STEERING_SIGMA = 0.3  # These values will need to be tuned
+VELOCITY_SIGMA = 0.1
 _LAMBDA = 0.1
 THETA_WEIGHT = 1.0
 
-DIST_THRES = 0.01
-THETA_THRES = np.pi / 6
+DIST_THRES = 0.35
+THETA_THRES = np.pi / 8
 
 
 class MPPIController:
@@ -142,20 +142,30 @@ class MPPIController:
     bounds_check = self.permissible_region[y, x] * C
     bounds_check = bounds_check.float().squeeze(0)
 
+    print "The number of particles that are within the wall are", torch.sum(self.permissible_region[y, x])
+
     # Control cost using steering and velocity sigmas.
     ctrl = ctrl.unsqueeze(1)  # Unsqueeze from (2,) to (2,1) for matrix mult.
     noise_ctrl_mm = noise.mm(ctrl)
-    ctrl_cost = noise_ctrl_mm * (_LAMBDA / STEERING_SIGMA)
-    ctrl_cost += noise_ctrl_mm * (_LAMBDA / VELOCITY_SIGMA)
-    ctrl_cost = ctrl_cost.squeeze()  # Squeeze from (K, 1) to (K,)
 
-    return pose_cost #+ ctrl_cost  # Expected (K,)
+    # Divide controls by respective sigmas
+    noise_ctrl_mm[0, :] /= STEERING_SIGMA
+    noise_ctrl_mm[1, :] /= VELOCITY_SIGMA
+
+    # Multiply by Lambda
+    ctrl_cost = noise_ctrl_mm * _LAMBDA
+    ctrl_cost = torch.abs(ctrl_cost.squeeze())  # Squeeze from (K, 1) to (K,)
+
+
+    return pose_cost + ctrl_cost + bounds_check # Expected (K,)
 
 
   def mppi(self, curr_pose, init_input):
     t0 = time.time()
-    diff = curr_pose - self.goal
-    if diff[0] >= DIST_THRES or diff[1] >= DIST_THRES or diff[2] >= THETA_THRES:
+    diff = torch.abs(curr_pose - self.goal)
+    print 'diff', diff, 'DIST_THRES', DIST_THRES, 'THETA_THRES', THETA_THRES
+    angle_between = min(diff[2], np.pi * 2 - diff[2])
+    if diff[0] >= DIST_THRES or diff[1] >= DIST_THRES or angle_between >= THETA_THRES:
       # Network input can be:
       #   0    1       2          3           4        5      6   7
       # xdot, ydot, thetadot, sin(theta), cos(theta), vel, delta, dt
@@ -288,9 +298,13 @@ class MPPIController:
     self.controls[:, :-1] = self.controls[:, 1:]
 
     # Create copy of shifted, take average for smoothing
-    shifted_controls = self.controls[:, 1:].clone()
+    # import pdb
+    # pdb.set_trace()
+    shifted_controls = torch.cuda.FloatTensor(self.controls.size()).zero_()
+    shifted_controls[:, :-1] = self.controls[:, 1:]
     shifted_controls[:, -1] = self.controls[:, -1]
-    self.controls = (self.controls + shifted_controls) / 2
+    self.controls += shifted_controls
+    self.controls /= 2
 
     # self.visualize(poses)
 
@@ -311,6 +325,8 @@ class MPPIController:
       for i in range(0, self.num_viz_paths):
         pa = Path()
         pa.header = Utils.make_header(frame_id)
+        # import pdb
+        # pdb.set_trace()
         pa.poses = map(Utils.particle_to_posestamped, poses[i, :, :], [frame_id] * T)
         self.path_pub.publish(pa)
 
