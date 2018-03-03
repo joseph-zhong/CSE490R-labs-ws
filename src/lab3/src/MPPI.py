@@ -235,6 +235,9 @@ class MPPIController:
     self.controls[1, :] = torch.clamp(self.controls[1, :], -MAX_ANGLE, MAX_ANGLE)
     print("MPPI: %4.5f ms" % ((time.time() - t0) * 1000.0))
 
+    # Smooth controls before publishing
+    self.controls = self.controls  # Smoothing by blur?
+
     run_ctrl = self.controls[:, 0]
     poses = self.rollouts.transpose(0, 1)  # Input to particle_to_posestamped should be (K, T, 3)
 
@@ -278,6 +281,11 @@ class MPPIController:
 
     # Shifting past controls, duplicating previous final controls.
     self.controls[:, :-1] = self.controls[:, 1:]
+
+    # Create copy of shifted, take average for smoothing
+    shifted_controls = self.controls[:, 1:].clone()
+    shifted_controls[:, -1] = self.controls[:, -1]
+    self.controls = (self.controls + shifted_controls) / 2
 
     # self.visualize(poses)
 
