@@ -27,6 +27,10 @@ VELOCITY_SIGMA = 0.4
 _LAMBDA = 0.1
 THETA_WEIGHT = 1.0
 
+DIST_THRES = 0.01
+THETA_THRES = np.pi / 6
+
+
 class MPPIController:
 
   def __init__(self):
@@ -147,101 +151,102 @@ class MPPIController:
 
     return pose_cost #+ ctrl_cost  # Expected (K,)
 
+
   def mppi(self, curr_pose, init_input):
     t0 = time.time()
-    # Network input can be:
-    #   0    1       2          3           4        5      6   7
-    # xdot, ydot, thetadot, sin(theta), cos(theta), vel, delta, dt
+    diff = curr_pose - self.goal
+    if diff[0] >= DIST_THRES or diff[1] >= DIST_THRES or diff[2] >= THETA_THRES:
+      # Network input can be:
+      #   0    1       2          3           4        5      6   7
+      # xdot, ydot, thetadot, sin(theta), cos(theta), vel, delta, dt
 
-    # MPPI should
-    # generate noise according to sigma
-    # combine that noise with your central control sequence
-    # Perform rollouts with those controls from your current pose
-    # Calculate costs for each of K trajectories
-    # Perform the MPPI weighting on your calculatd costs
-    # Scale the added noise by the weighting and add to your control sequence
-    # Apply the first control values, and shift your control trajectory
+      # MPPI should
+      # generate noise according to sigma
+      # combine that noise with your central control sequence
+      # Perform rollouts with those controls from your current pose
+      # Calculate costs for each of K trajectories
+      # Perform the MPPI weighting on your calculatd costs
+      # Scale the added noise by the weighting and add to your control sequence
+      # Apply the first control values, and shift your control trajectory
 
-    # Notes:
-    # MPPI can be assisted by carefully choosing lambda, and sigma
-    # It is advisable to clamp the control values to be within the feasible range
-    # of controls sent to the Vesc
-    # Your code should account for theta being between -pi and pi. This is
-    # important.
-    # The more code that uses pytorch's cuda abilities, the better; every line in
-    # python will slow down the control calculations. You should be able to keep a
-    # reasonable amount of calculations done (T = 40, K = 2000) within the 100ms
-    # between inferred-poses from the particle filter.
-    vel_noise = np.random.normal(loc=0.0, scale=VELOCITY_SIGMA, size=(K, 1, T))
-    delta_noise = np.random.normal(loc=0.0, scale=STEERING_SIGMA, size=(K, 1, T))
-    noise = torch.cuda.FloatTensor(np.concatenate((vel_noise, delta_noise), axis=1))
+      # Notes:
+      # MPPI can be assisted by carefully choosing lambda, and sigma
+      # It is advisable to clamp the control values to be within the feasible range
+      # of controls sent to the Vesc
+      # Your code should account for theta being between -pi and pi. This is
+      # important.
+      # The more code that uses pytorch's cuda abilities, the better; every line in
+      # python will slow down the control calculations. You should be able to keep a
+      # reasonable amount of calculations done (T = 40, K = 2000) within the 100ms
+      # between inferred-poses from the particle filter.
+      vel_noise = np.random.normal(loc=0.0, scale=VELOCITY_SIGMA, size=(K, 1, T))
+      delta_noise = np.random.normal(loc=0.0, scale=STEERING_SIGMA, size=(K, 1, T))
+      noise = torch.cuda.FloatTensor(np.concatenate((vel_noise, delta_noise), axis=1))
 
-    # Bound the noisy controls to car's extremes
-    noisy_controls = noise + self.controls
-    noisy_controls[:, 0, :] = torch.clamp(noisy_controls[:, 0, :], -MAX_VEL, MAX_VEL)
-    noisy_controls[:, 1, :] = torch.clamp(noisy_controls[:, 1, :], -MAX_ANGLE, MAX_ANGLE)
+      # Bound the noisy controls to car's extremes
+      noisy_controls = noise + self.controls
+      noisy_controls[:, 0, :] = torch.clamp(noisy_controls[:, 0, :], -MAX_VEL, MAX_VEL)
+      noisy_controls[:, 1, :] = torch.clamp(noisy_controls[:, 1, :], -MAX_ANGLE, MAX_ANGLE)
 
-    noisy_controls = torch.transpose(noisy_controls, 0, 2)
+      noisy_controls = torch.transpose(noisy_controls, 0, 2)
 
-    self.model_input *= 0  # Re-initialize model input
-    self.model_input += init_input
-    self.cost *= 0  # Zero out cost vector
-    self.rollouts *= 0
+      self.model_input *= 0  # Re-initialize model input
+      self.model_input += init_input
+      self.cost *= 0  # Zero out cost vector
+      self.rollouts *= 0
 
-    for t in xrange(T):
-      self.model_input[:, 5] = noisy_controls[t, 0, :]
-      self.model_input[:, 6] = noisy_controls[t, 1, :]
+      for t in xrange(T):
+        self.model_input[:, 5] = noisy_controls[t, 0, :]
+        self.model_input[:, 6] = noisy_controls[t, 1, :]
 
-      # Perform a forward pass using perturbed controls
-      rollout_step_delta = self.model(Variable(self.model_input))
+        # Perform a forward pass using perturbed controls
+        rollout_step_delta = self.model(Variable(self.model_input))
 
-      # Extract the tensor
-      rollout_step_delta = rollout_step_delta.data
+        # Extract the tensor
+        rollout_step_delta = rollout_step_delta.data
 
-      if t == 0:
-        self.rollouts[t] = rollout_step_delta + curr_pose
-      else:
-        self.rollouts[t] = rollout_step_delta + self.rollouts[t - 1]
-
-
-      self.model_input[:, 0] = rollout_step_delta[:, 0]
-      self.model_input[:, 1] = rollout_step_delta[:, 1]
-      self.model_input[:, 2] = rollout_step_delta[:, 2]
-      theta = self.rollouts[t, :, 2].clone()
-      self.model_input[:, 3] = np.sin(theta)
-      self.model_input[:, 4] = np.cos(theta)
-      self.cost += self.running_cost(self.rollouts[t], self.goal, self.controls[:, t], noise[:, :, t])
-
-    beta = torch.min(self.cost)
-    eta = torch.sum(torch.exp((self.cost - beta) / _LAMBDA * -1))
-
-    weights = torch.exp((self.cost - beta) / _LAMBDA * -1) / eta
-    weights = weights.squeeze()  # Squeeze allows matrix multiply
-
-    # Add weighted noise to current controls.
-    noise = torch.transpose(noise, 0, 2)  # (T, 2, K) allows looping over time steps
-    for t in xrange(T):
-      vel_noise = torch.cuda.FloatTensor(noise[t][0])
-      steer_noise = torch.cuda.FloatTensor(noise[t][1])
-
-      vel_weighted_noise = weights.dot(vel_noise)
-      steer_weighted_noise = weights.dot(steer_noise)
-
-      self.controls[0][t] += vel_weighted_noise
-      self.controls[1][t] += steer_weighted_noise
+        if t == 0:
+          self.rollouts[t] = rollout_step_delta + curr_pose
+        else:
+          self.rollouts[t] = rollout_step_delta + self.rollouts[t - 1]
 
 
-    self.controls[0, :] = torch.clamp(self.controls[0, :], -MAX_VEL, MAX_VEL)
-    self.controls[1, :] = torch.clamp(self.controls[1, :], -MAX_ANGLE, MAX_ANGLE)
-    print("MPPI: %4.5f ms" % ((time.time() - t0) * 1000.0))
+        self.model_input[:, 0] = rollout_step_delta[:, 0]
+        self.model_input[:, 1] = rollout_step_delta[:, 1]
+        self.model_input[:, 2] = rollout_step_delta[:, 2]
+        theta = self.rollouts[t, :, 2].clone()
+        self.model_input[:, 3] = np.sin(theta)
+        self.model_input[:, 4] = np.cos(theta)
+        self.cost += self.running_cost(self.rollouts[t], self.goal, self.controls[:, t], noise[:, :, t])
 
-    # Smooth controls before publishing
-    self.controls = self.controls  # Smoothing by blur?
+      beta = torch.min(self.cost)
+      eta = torch.sum(torch.exp((self.cost - beta) / _LAMBDA * -1))
 
-    run_ctrl = self.controls[:, 0]
-    poses = self.rollouts.transpose(0, 1)  # Input to particle_to_posestamped should be (K, T, 3)
+      weights = torch.exp((self.cost - beta) / _LAMBDA * -1) / eta
+      weights = weights.squeeze()  # Squeeze allows matrix multiply
 
-    return run_ctrl, poses
+      # Add weighted noise to current controls.
+      noise = torch.transpose(noise, 0, 2)  # (T, 2, K) allows looping over time steps
+      for t in xrange(T):
+        vel_noise = torch.cuda.FloatTensor(noise[t][0])
+        steer_noise = torch.cuda.FloatTensor(noise[t][1])
+
+        vel_weighted_noise = weights.dot(vel_noise)
+        steer_weighted_noise = weights.dot(steer_noise)
+
+        self.controls[0][t] += vel_weighted_noise
+        self.controls[1][t] += steer_weighted_noise
+
+
+      self.controls[0, :] = torch.clamp(self.controls[0, :], -MAX_VEL, MAX_VEL)
+      self.controls[1, :] = torch.clamp(self.controls[1, :], -MAX_ANGLE, MAX_ANGLE)
+      print("MPPI: %4.5f ms" % ((time.time() - t0) * 1000.0))
+
+      run_ctrl = self.controls[:, 0]
+      poses = self.rollouts.transpose(0, 1)  # Input to particle_to_posestamped should be (K, T, 3)
+      return run_ctrl, poses
+    else:
+      return torch.cuda.FloatTensor([0.0, 0.0]), torch.cuda.FloatTensor(T, K, 3).zero_()
 
   def mppi_cb(self, msg):
     # print("callback")
