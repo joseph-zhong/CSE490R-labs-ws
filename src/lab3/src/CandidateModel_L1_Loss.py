@@ -203,7 +203,7 @@ D_in, H, D_out = INPUT_SIZE, 64, OUTPUT_SIZE
 model = MotionModel(D_in, H, H // 2, D_out).cuda()  # Remove cuda for CPU training
 # loss_fn = torch.nn.MSELoss(size_average=False)
 loss_fn = torch.nn.SmoothL1Loss(size_average=False)
-learning_rate = 1e-3
+learning_rate = 1e-5
 opt = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
 
@@ -262,7 +262,7 @@ def doTraining(model, filename, optimizer, N=5000):
 
 
 if len(sys.argv) > 2:
-    doTraining(model, sys.argv[2], opt, N=20000)
+    doTraining(model, sys.argv[2], opt, N=25000)
 
 
 # The following are functions meant for debugging and sanity checking your
