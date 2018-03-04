@@ -189,9 +189,12 @@ class MPPIController:
       # python will slow down the control calculations. You should be able to keep a
       # reasonable amount of calculations done (T = 40, K = 2000) within the 100ms
       # between inferred-poses from the particle filter.
-      vel_noise = np.random.normal(loc=0.0, scale=VELOCITY_SIGMA, size=(K, 1, T))
-      delta_noise = np.random.normal(loc=0.0, scale=STEERING_SIGMA, size=(K, 1, T))
-      noise = torch.cuda.FloatTensor(np.concatenate((vel_noise, delta_noise), axis=1))
+      import pdb
+
+      pdb.set_trace()
+      vel_noise = torch.cuda.FloatTensor(K, 1, T).normal_(0.0, VELOCITY_SIGMA)
+      delta_noise = torch.cuda.FloatTensor(K, 1, T).normal_(0.0, STEERING_SIGMA)
+      noise = torch.cat((vel_noise, delta_noise), 1)
 
       # Bound the noisy controls to car's extremes
       noisy_controls = noise + self.controls
