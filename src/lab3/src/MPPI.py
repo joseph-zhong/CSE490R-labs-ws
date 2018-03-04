@@ -23,13 +23,13 @@ from geometry_msgs.msg import PoseStamped, PoseArray, PoseWithCovarianceStamped,
 
 MAX_ANGLE = 0.34
 MAX_VEL = 2.0
-T = 30
+T = 25
 K = 1000
 C = 1000000
 STEERING_SIGMA = 0.2  # These values will need to be tuned
 VELOCITY_SIGMA = 0.4
 _LAMBDA = 0.1
-THETA_WEIGHT = 0.3
+THETA_WEIGHT = 0.2
 
 DIST_THRES = 0.25
 THETA_THRES = np.pi / 9
