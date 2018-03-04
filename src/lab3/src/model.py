@@ -10,9 +10,9 @@ class MotionModel(nn.Module):
 
         self.layers = nn.Sequential(
             nn.Linear(D_in, H1),
-            nn.Dropout(0.2),
+            nn.Tanh(),
             nn.Linear(H1, H2),
-            nn.ReLU(),
+            nn.Tanh(),
             nn.Linear(H2, D_out)
         )
 

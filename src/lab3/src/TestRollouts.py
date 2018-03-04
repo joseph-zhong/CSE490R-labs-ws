@@ -3,6 +3,7 @@
 
 import matplotlib.pyplot as plt
 import time
+import os
 import sys
 import rospy
 import rosbag
@@ -40,40 +41,23 @@ def main():
     model.eval() 
     print "\nLoaded!\n\nTesting model...\n"
 
-    print "N = 30"
-    N = 30
+    print "N = 10"
+    N = 10
 
-    # Set axes
-    axes = plt.gca()
-    axes.set_xlim([-3, 3])
-    axes.set_ylim([-3, 3])
+    # Still (v = 0, st = 0)
+    plot_rollout(model, N, "Still", 'm-')
 
-    forward_rollout = perform_rollout(model, N)
-    x_f = forward_rollout[:, 0]
-    y_f = forward_rollout[:, 1]
-    plt.plot(x_f, y_f, 'k-')
+    # Forward (v = v_max, st = 0)
+    plot_rollout(model, N, "Forward", 'k-', velocity=0.7)
 
-    backward_rollout = perform_rollout(model, N, backwards=True)
-    x_b = backward_rollout[:, 0]
-    y_b = backward_rollout[:, 1]
-    plt.plot(x_b, y_b, 'r-')
+    # Backward (v = v_max, st = 0)
+    plot_rollout(model, N, "Backward", 'r-', velocity=-0.7)
 
+    # Left (v = v_max, delta = delta_max)
+    plot_rollout(model, N, "Left", 'g-', velocity=0.7, delta=0.34)
 
-    left_rollout = perform_rollout(model, N, delta=0.34)
-    x_l = left_rollout[:, 0]
-    y_l = left_rollout[:, 1]
-    plt.plot(x_l, y_l, 'g-')
-
-    right_rollout = perform_rollout(model, N, delta=-0.34)
-    x_r = right_rollout[:, 0]
-    y_r = right_rollout[:, 1]
-    plt.plot(x_r, y_r, 'b-')
-
-    plt.xlabel("X (meters)")
-    plt.ylabel("Y (meters)")
-    plt.title("Forward, Backward, Left, and Right")
-    plt.savefig("plots/combined.png")
-
+    # Right (v = v_max, delta = delta_max)
+    plot_rollout(model, N, "Right", 'b-', velocity=0.7, delta=-0.34)
 
 
 
@@ -121,38 +105,38 @@ def test_model(m, N, dt = 0.1):
     rollout(m, nn_input, N)
 
 
-def perform_rollout(m, N, dt = 0.1, backwards=False, delta=0.0):
+def perform_rollout(m, N, dt=0.1, velocity=0.0, delta=0.0):
     cos, v, st = 4, 5, 6
     s = INPUT_SIZE
     nn_input = torch.zeros(s).cuda()
     nn_input[cos] = 1.0
-
-    if backwards:
-        nn_input[v] = -0.7
-    else:
-        nn_input[v] = 0.7
-
+    nn_input[v] = velocity
     nn_input[st] = delta
     nn_input[7] = dt
 
     return rollout(m, nn_input, N)
 
 
-# TODO: Rollout plotting function; make rollout return a list of
-# of poses + have the plotting function plot them.
-def plot_rollout(poses):
-    poses = np.array(poses)
-    x = poses[:, 0]
-    y = poses[:, 1]
+def plot_rollout(model, N, direction, marker, velocity=0.0, delta=0.0):
+    if not os.path.exists("plots"):
+        os.mkdir("plots")
 
-    print x
-    print y
     axes = plt.gca()
-    axes.set_xlim([0, 8])
-    axes.set_ylim([-8, 8])
-    plt.scatter(x, y)
-    plt.show()
+    axes.set_xlim([-1, 1])
+    axes.set_ylim([-1, 1])
+    plt.xlabel("X (meters)")
+    plt.ylabel("Y (meters)")
+    
+    title = direction + " Rollout: v = {}, delta = {}".format(velocity, delta)
+    file_name = direction + ".png"
 
+    rollout = perform_rollout(model, N, velocity=velocity, delta=delta)
+    x_r = rollout[:, 0]
+    y_r = rollout[:, 1]
+    plt.plot(x_r, y_r, marker)
+    plt.title(title)
+    plt.savefig(os.path.join("plots", file_name), dpi=300)
+    plt.clf()
 
 
 
