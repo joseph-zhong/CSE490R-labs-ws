@@ -2,6 +2,7 @@
 
 import time
 import sys
+import os
 import rospy
 import rosbag
 import numpy as np
@@ -25,13 +26,15 @@ MAX_VEL = 2.0
 T = 30
 K = 1000
 C = 1000000
-STEERING_SIGMA = 0.3  # These values will need to be tuned
+STEERING_SIGMA = 0.2  # These values will need to be tuned
 VELOCITY_SIGMA = 0.4
 _LAMBDA = 0.1
-THETA_WEIGHT = 1.0
+THETA_WEIGHT = 0.3
 
-DIST_THRES = 0.35
-THETA_THRES = np.pi / 8
+DIST_THRES = 0.25
+THETA_THRES = np.pi / 9
+
+FATNESS = 25
 
 
 class MPPIController:
@@ -100,51 +103,18 @@ class MPPIController:
     self.permissible_region = np.negative(self.permissible_region)  # 0 is permissible, 1 is not
     self.permissible_region = self.permissible_region.astype(int)
 
-    # import pdb
-    # pdb.set_trace()
-    filter_array1 = np.ones((30, 30)) / 30 ** 2
-    filter_array2 = np.ones((16, 16)) / 16 ** 2
-    filter_array3 = np.ones((50,50)) / 50 ** 2
-    filter_array4 = np.ones((100,100)) / 100 ** 2
-    # filter_array5 = np.ones((200,200)) / 200 ** 2
+    filter_array2 = np.ones((FATNESS, FATNESS)) / FATNESS ** 2
 
-
-    fname = 'permissible_region16.npy'
-    import os
+    fname = 'permissible_region{}.npy'.format(FATNESS)
     if not os.path.isfile(fname):
       print 'computing ', fname
-      self.permissible_region1 = np.ceil(signal.convolve2d(self.permissible_region, filter_array2, mode="same"))
-      np.save(fname, self.permissible_region1)
+      self.permissible_region_buffered = np.ceil(signal.convolve2d(self.permissible_region, filter_array2, mode="same"))
+      np.save(fname, self.permissible_region_buffered)
     else:
-      self.permissible_region1 = np.load(fname)
+      self.permissible_region_buffered = np.load(fname)
     print 'c'
-    # self.permissible_region3 = np.ceil(signal.convolve2d(self.permissible_region, filter_array3, mode="same"))
-    # self.permissible_region4 = np.ceil(signal.convolve2d(self.permissible_region, filter_array4, mode="same"))
-    # self.permissible_region5 = np.ceil(signal.convolve2d(self.permissible_region, filter_array5, mode="same"))
 
-
-    # plt.figure()
-    # plt.imshow(self.permissible_region)
-    # plt.figure()
-    # plt.imshow(self.permissible_region1)
-
-    # plt.figure()
-    # plt.imshow(self.permissible_region2)
-
-    # plt.figure()
-    # plt.imshow(self.permissible_region3)
-    #
-    # plt.figure()
-    # plt.imshow(self.permissible_region4)
-    #
-    # plt.figure()
-    # plt.imshow(self.permissible_region5)
-
-    plt.show()
-
-
-
-    self.permissible_region = torch.cuda.IntTensor(self.permissible_region)
+    self.permissible_region = torch.cuda.IntTensor(self.permissible_region_buffered)
     print "The size of the permissible region is:", self.permissible_region.shape
 
     print("Making callbacks")
@@ -283,17 +253,9 @@ class MPPIController:
       weights = torch.exp((self.cost - beta) / _LAMBDA * -1) / eta
       weights = weights.squeeze()  # Squeeze allows matrix multiply
 
-      # Add weighted noise to current controls.
-      noise = torch.transpose(noise, 0, 2)  # (T, 2, K) allows looping over time steps
-      for t in xrange(T):
-        vel_noise = torch.cuda.FloatTensor(noise[t][0])
-        steer_noise = torch.cuda.FloatTensor(noise[t][1])
-
-        vel_weighted_noise = weights.dot(vel_noise)
-        steer_weighted_noise = weights.dot(steer_noise)
-
-        self.controls[0][t] += vel_weighted_noise
-        self.controls[1][t] += steer_weighted_noise
+      # (T, 2, K) allows looping over time steps
+      weighted_noise = noise.transpose(0, 2).transpose(0, 1) * weights
+      self.controls += torch.sum(weighted_noise, 2)
 
 
       self.controls[0, :] = torch.clamp(self.controls[0, :], -MAX_VEL, MAX_VEL)
@@ -348,11 +310,11 @@ class MPPIController:
     # Create copy of shifted, take average for smoothing
     # import pdb
     # pdb.set_trace()
-    shifted_controls = torch.cuda.FloatTensor(self.controls.size()).zero_()
-    shifted_controls[:, :-1] = self.controls[:, 1:]
-    shifted_controls[:, -1] = self.controls[:, -1]
-    self.controls += shifted_controls
-    self.controls /= 2
+    # shifted_controls = torch.cuda.FloatTensor(self.controls.size()).zero_()
+    # shifted_controls[:, :-1] = self.controls[:, 1:]
+    # shifted_controls[:, -1] = self.controls[:, -1]
+    # self.controls += shifted_controls
+    # self.controls /= 2
 
     # self.visualize(poses)
 
