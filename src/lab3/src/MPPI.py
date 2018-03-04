@@ -7,9 +7,12 @@ import rosbag
 import numpy as np
 import utils as Utils
 
+
 import torch
 import torch.utils.data
 from torch.autograd import Variable
+from scipy import signal
+import matplotlib.pyplot as plt
 
 from nav_msgs.srv import GetMap
 from ackermann_msgs.msg import AckermannDriveStamped
@@ -75,7 +78,7 @@ class MPPIController:
     # We will publish control messages and a way to visualize a subset of our
     # rollouts, much like the particle filter
     self.ctrl_pub = rospy.Publisher(rospy.get_param("~ctrl_topic",
-      "/vesc/high_level/ackermann_cmd_mux/input/nav_0"),
+                                                    "/vesc/high_level/ackermann_cmd_mux/input/nav_0"),
                                     AckermannDriveStamped, queue_size=2)
     self.path_pub = rospy.Publisher("/mppi/paths", Path, queue_size=self.num_viz_paths)
 
@@ -96,6 +99,51 @@ class MPPIController:
     # With values 0: not permissible, 1: permissible
     self.permissible_region = np.negative(self.permissible_region)  # 0 is permissible, 1 is not
     self.permissible_region = self.permissible_region.astype(int)
+
+    # import pdb
+    # pdb.set_trace()
+    filter_array1 = np.ones((30, 30)) / 30 ** 2
+    filter_array2 = np.ones((16, 16)) / 16 ** 2
+    filter_array3 = np.ones((50,50)) / 50 ** 2
+    filter_array4 = np.ones((100,100)) / 100 ** 2
+    # filter_array5 = np.ones((200,200)) / 200 ** 2
+
+
+    fname = 'permissible_region16.npy'
+    import os
+    if not os.path.isfile(fname):
+      print 'computing ', fname
+      self.permissible_region1 = np.ceil(signal.convolve2d(self.permissible_region, filter_array2, mode="same"))
+      np.save(fname, self.permissible_region1)
+    else:
+      self.permissible_region1 = np.load(fname)
+    print 'c'
+    # self.permissible_region3 = np.ceil(signal.convolve2d(self.permissible_region, filter_array3, mode="same"))
+    # self.permissible_region4 = np.ceil(signal.convolve2d(self.permissible_region, filter_array4, mode="same"))
+    # self.permissible_region5 = np.ceil(signal.convolve2d(self.permissible_region, filter_array5, mode="same"))
+
+
+    # plt.figure()
+    # plt.imshow(self.permissible_region)
+    # plt.figure()
+    # plt.imshow(self.permissible_region1)
+
+    # plt.figure()
+    # plt.imshow(self.permissible_region2)
+
+    # plt.figure()
+    # plt.imshow(self.permissible_region3)
+    #
+    # plt.figure()
+    # plt.imshow(self.permissible_region4)
+    #
+    # plt.figure()
+    # plt.imshow(self.permissible_region5)
+
+    plt.show()
+
+
+
     self.permissible_region = torch.cuda.IntTensor(self.permissible_region)
     print "The size of the permissible region is:", self.permissible_region.shape
 
