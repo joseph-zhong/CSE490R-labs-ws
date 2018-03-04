@@ -23,7 +23,7 @@ T = 30
 K = 1000
 C = 1000000
 STEERING_SIGMA = 0.3  # These values will need to be tuned
-VELOCITY_SIGMA = 0.1
+VELOCITY_SIGMA = 0.4
 _LAMBDA = 0.1
 THETA_WEIGHT = 1.0
 
@@ -142,7 +142,7 @@ class MPPIController:
     bounds_check = self.permissible_region[y, x] * C
     bounds_check = bounds_check.float().squeeze(0)
 
-    print "The number of particles that are within the wall are", torch.sum(self.permissible_region[y, x])
+    # print "The number of particles that are within the wall are", torch.sum(self.permissible_region[y, x])
 
     # Control cost using steering and velocity sigmas.
     ctrl = ctrl.unsqueeze(1)  # Unsqueeze from (2,) to (2,1) for matrix mult.
