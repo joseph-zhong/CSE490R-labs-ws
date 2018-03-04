@@ -54,7 +54,9 @@ class MPPIController:
     self.model_input = torch.cuda.FloatTensor(K, 8).zero_()
     self.cost = torch.cuda.FloatTensor(K, 1).zero_()
     self.nn_input = torch.cuda.FloatTensor(8).zero_()
-
+    self.vel_noise = torch.cuda.FloatTensor(K, 1, T)
+    self.delta_noise = torch.cuda.FloatTensor(K, 1, T)
+    self.noise = torch.cuda.FloatTensor(K, 2, T)
 
     model_name = rospy.get_param("~nn_model", "myneuralnetisbestneuralnet.pt")
     self.model = torch.load(model_name)
@@ -189,13 +191,14 @@ class MPPIController:
       # python will slow down the control calculations. You should be able to keep a
       # reasonable amount of calculations done (T = 40, K = 2000) within the 100ms
       # between inferred-poses from the particle filter.
+      self.vel_noise = self.vel_noise.normal_(0.0, VELOCITY_SIGMA)
+      self.delta_noise = self.delta_noise.normal_(0.0, STEERING_SIGMA)
+      self.noise[:, 0, :] = self.vel_noise
+      self.noise[:, 1, :] = self.delta_noise
 
-      vel_noise = torch.cuda.FloatTensor(K, 1, T).normal_(0.0, VELOCITY_SIGMA)
-      delta_noise = torch.cuda.FloatTensor(K, 1, T).normal_(0.0, STEERING_SIGMA)
-      noise = torch.cat((vel_noise, delta_noise), 1)
 
       # Bound the noisy controls to car's extremes
-      noisy_controls = noise + self.controls
+      noisy_controls = self.noise + self.controls
       noisy_controls[:, 0, :] = torch.clamp(noisy_controls[:, 0, :], -MAX_VEL, MAX_VEL)
       noisy_controls[:, 1, :] = torch.clamp(noisy_controls[:, 1, :], -MAX_ANGLE, MAX_ANGLE)
 
@@ -228,7 +231,7 @@ class MPPIController:
         theta = self.rollouts[t, :, 2].clone()
         self.model_input[:, 3] = np.sin(theta)
         self.model_input[:, 4] = np.cos(theta)
-        self.cost += self.running_cost(self.rollouts[t], self.goal, self.controls[:, t], noise[:, :, t])
+        self.cost += self.running_cost(self.rollouts[t], self.goal, self.controls[:, t], self.noise[:, :, t])
 
       beta = torch.min(self.cost)
       eta = torch.sum(torch.exp((self.cost - beta) / _LAMBDA * -1))
@@ -237,17 +240,10 @@ class MPPIController:
       weights = weights.squeeze()  # Squeeze allows matrix multiply
 
       # Add weighted noise to current controls.
-      noise = torch.transpose(noise, 0, 2)  # (T, 2, K) allows looping over time steps
-      for t in xrange(T):
-        vel_noise = torch.cuda.FloatTensor(noise[t][0])
-        steer_noise = torch.cuda.FloatTensor(noise[t][1])
 
-        vel_weighted_noise = weights.dot(vel_noise)
-        steer_weighted_noise = weights.dot(steer_noise)
-
-        self.controls[0][t] += vel_weighted_noise
-        self.controls[1][t] += steer_weighted_noise
-
+      # (T, 2, K) allows looping over time steps
+      weighted_noise = self.noise.transpose(0, 2).transpose(0, 1) * weights
+      self.controls += torch.sum(weighted_noise, 2)
 
       self.controls[0, :] = torch.clamp(self.controls[0, :], -MAX_VEL, MAX_VEL)
       self.controls[1, :] = torch.clamp(self.controls[1, :], -MAX_ANGLE, MAX_ANGLE)
