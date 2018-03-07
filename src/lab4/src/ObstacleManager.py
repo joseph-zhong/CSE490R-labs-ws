@@ -47,6 +47,11 @@ class ObstacleManager(object):
     # map for simplicity
     # ----------------------------------------------------------
 
+    # (Tam: Suggested implementation)
+    # TODO: Check whether the current config is
+    # 1. Colliding with an edge of the map
+    # 2. Whether it's within bounds or not
+
     return True  
 
   # Check if there is an unobstructed edge between the passed configs
@@ -60,6 +65,16 @@ class ObstacleManager(object):
     # Find path between two configs using Dubins
     # Check if all configurations along Dubins path are obstructed 
     # -----------------------------------------------------------
+
+    # (Tam: Suggested implementation)
+    # TODO: config1 and config2 are src and dest. respectively, which
+    # will have intermediate waypoints between them. To detect if the
+    # path between them is valid
+    # 1. for each item in  [config1, intermed1, intermed2, ... intermedn, config2]:
+    #        if not get_state_validity(item):
+    #            return False
+    #    return True
+
 
     return True
 
