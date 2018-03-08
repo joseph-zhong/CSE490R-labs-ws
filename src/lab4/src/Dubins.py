@@ -4,6 +4,9 @@ import math
 import IPython
 import numpy as np
 import matplotlib.pyplot as plt
+import KinematicModel as model
+
+import rospy
 
 show_animation = True
 
@@ -296,7 +299,16 @@ def process_dubins(startx, starty, enda, px, py, pa, cost):
   return px, py, pa, cost
 
 def main():
-  pass
+  print "Starting Dubins"
+  rospy.init_node("dubins", anonymous=True)
+  dx = 1.0
+  dy = 0.0
+  d_theta = 0.0
+  c = 1.0 / model.TURNING_RADIUS
+
+  px, py, pyaw, best_mode, best_cost = dubins_path_planning_from_origin(dx, dy, d_theta, c)
+  print "px", px, "py", py, "pyaw", pyaw, "best_mode", best_mode, "best_cost", best_cost
+
   # Write TEST CODE HERE!
 
 if __name__ == '__main__':

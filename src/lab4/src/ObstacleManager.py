@@ -114,6 +114,7 @@ class ObstacleManager(object):
 if __name__ == '__main__':
   print "Starting obstacle manager"
   rospy.init_node("obstacle_manager_test", anonymous=True)
+
   in_bounds = [-10.8084335327, -22.6137657166, 0.0]
   out_bounds = [-3.07820796967, -11.4502191544, 1.0]
   on_wall = [2.70266675949, 0.56733494997, 2.0]
@@ -127,7 +128,6 @@ if __name__ == '__main__':
   # Create the obstacle manager
   obs_manager = ObstacleManager(map_msg)
 
-
   print "Bounds 1:", in_bounds
   print "Bounds 2:", out_bounds
   print "Bounds 3:", on_wall
@@ -135,6 +135,7 @@ if __name__ == '__main__':
   bound1_valid = obs_manager.get_state_validity(in_bounds)
   bound2_valid = obs_manager.get_state_validity(out_bounds)
   bound3_valid = obs_manager.get_state_validity(on_wall)
+
   print "Is in_bounds valid?", bound1_valid
   print "Is out_bounds valid?", bound2_valid
   print "Is on_wall valid?", bound3_valid
