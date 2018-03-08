@@ -148,7 +148,7 @@ def dubins_path_planning_from_origin(ex, ey, eyaw, c):
   best_cost = float("inf")
 
   #-------------------------------------------------------------------
-  # YOUR CODE HERE
+  # TODO: YOUR CODE HERE
   #
   # Loop through all 6 of the planners, asking each one to compute a path
   #   Each planner will return t,p,q and mode
@@ -287,6 +287,7 @@ def process_dubins(startx, starty, enda, px, py, pa, cost):
 
 def main():
   # Write TEST CODE HERE!
+  pass
 
 if __name__ == '__main__':
   main()

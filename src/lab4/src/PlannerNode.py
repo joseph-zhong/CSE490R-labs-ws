@@ -2,7 +2,7 @@
 
 import rospy 
 import numpy as np
-from nav_msgs.srv import GetMap
+from nav_msgs.srv import GetMap, GetPlan
 from lab4.srv import *
 from HaltonPlanner import HaltonPlanner
 from HaltonEnvironment import HaltonEnvironment
