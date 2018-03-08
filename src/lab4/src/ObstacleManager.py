@@ -114,24 +114,30 @@ class ObstacleManager(object):
 if __name__ == '__main__':
   print "Starting obstacle manager"
   rospy.init_node("obstacle_manager_test", anonymous=True)
-  bounds1 = [-22.3266181946, -10.6194477081, 0]
-  bounds2 = [2, 3, 1]
+  in_bounds = [-10.8084335327, -22.6137657166, 0.0]
+  out_bounds = [-3.07820796967, -11.4502191544, 1.0]
+  on_wall = [2.70266675949, 0.56733494997, 2.0]
 
+  # Get the map
   map_service_name = rospy.get_param("~static_map", "static_map")
   print("Getting map from service: ", map_service_name)
   rospy.wait_for_service(map_service_name)
   map_msg = rospy.ServiceProxy(map_service_name, GetMap)().map
 
+  # Create the obstacle manager
   obs_manager = ObstacleManager(map_msg)
 
-  print "Bounds 1:", bounds1
-  bounds1_map = Utils.world_to_map(bounds1, obs_manager.map_info)
-  print "Bounds 1 in the map is ", bounds1_map
-  bounds1_world = Utils.map_to_world(bounds1_map, obs_manager.map_info)
-  print "Bound 1 back in the world are ", bounds1_world
 
-  bound1_valid = obs_manager.get_state_validity(bounds1)
-  print "Is bounds1 valid?", bound1_valid
+  print "Bounds 1:", in_bounds
+  print "Bounds 2:", out_bounds
+  print "Bounds 3:", on_wall
+
+  bound1_valid = obs_manager.get_state_validity(in_bounds)
+  bound2_valid = obs_manager.get_state_validity(out_bounds)
+  bound3_valid = obs_manager.get_state_validity(on_wall)
+  print "Is in_bounds valid?", bound1_valid
+  print "Is out_bounds valid?", bound2_valid
+  print "Is on_wall valid?", bound3_valid
 
 
   # Tim can write this test
