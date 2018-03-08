@@ -181,7 +181,7 @@ def dubins_path_planning(s, e, c):
       px
       py
       pyaw
-      mode
+      cost
 
   """
   
@@ -286,6 +286,7 @@ def process_dubins(startx, starty, enda, px, py, pa, cost):
   return px, py, pa, cost
 
 def main():
+  pass
   # Write TEST CODE HERE!
 
 if __name__ == '__main__':

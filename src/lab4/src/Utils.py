@@ -32,7 +32,7 @@ def world_to_map(pose, map_info):
     # operates in place
     scale = map_info.resolution
     angle = -quaternion_to_angle(map_info.origin.orientation)
-    config = [0.0,0.0,0.0]
+    config = [0.0, 0.0, 0.0]
     # translation
     config[0] = (1.0/float(scale))*(pose[0] - map_info.origin.position.x)
     config[1] = (1.0/float(scale))*(pose[1] - map_info.origin.position.y)

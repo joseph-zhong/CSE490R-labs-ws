@@ -81,4 +81,6 @@ class ObstacleManager(object):
 
 # Test
 if __name__ == '__main__':
+  # Tim can write this test
+  pass
   # Write test code here!
