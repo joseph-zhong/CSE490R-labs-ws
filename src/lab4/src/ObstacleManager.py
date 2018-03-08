@@ -6,6 +6,9 @@ import Dubins
 import Utils
 import KinematicModel as model
 
+import matplotlib.pyplot as plt
+import numpy as np
+
 class ObstacleManager(object):
 
   def __init__(self, mapMsg):
@@ -22,22 +25,23 @@ class ObstacleManager(object):
     # Binarize the Image
     self.mapImageBW = 255*numpy.ones_like(self.mapImageGS, dtype=numpy.uint8)
     self.mapImageBW[self.mapImageGS==0] = 0
-    self.mapImageBW = self.mapImageBW[::-1,:,:] # Need to flip across the y-axis    
-    
+    self.mapImageBW = self.mapImageBW[::-1,:,:] # Need to flip across the y-axis
+    print "self.mapImageBW.shape:", self.mapImageBW.shape
+
     # Obtain the car length and width in pixels
     self.robotWidth = int(model.CAR_WIDTH/self.map_info.resolution + 0.5)
     self.robotLength = int(model.CAR_LENGTH/self.map_info.resolution + 0.5)
 
-  # Check if the passed config is in collision
-  # config: The configuration to check (in meters and radians)
-  # Returns False if in collision, True if not in collision
   def get_state_validity(self, config):
+    """ Check if the passed config is in collision
+    config: The configuration to check (in meters and radians)
+    Returns False if in collision, True if not in collision """
 
     # Convert the configuration to map-coordinates -> mapConfig is in pixel-space
     mapConfig = Utils.world_to_map(config, self.map_info)
 
     # ---------------------------------------------------------
-    # YOUR CODE HERE
+    # TODO: YOUR CODE HERE
     #
     # Return true or false based on whether the configuration is in collision
     # Use self.robotWidth and self.robotLength to represent the size of the robot
@@ -47,19 +51,37 @@ class ObstacleManager(object):
     # map for simplicity
     # ----------------------------------------------------------
 
-    # (Tam: Suggested implementation)
-    # TODO: Check whether the current config is
-    # 1. Colliding with an edge of the map
-    # 2. Whether it's within bounds or not
+    print "mapConfig:", mapConfig
+    assert isinstance(mapConfig, (list, tuple)) and len(mapConfig) == 3
+    y, x, theta = mapConfig
+    halfLen = self.robotLength / 2
+    halfWidth = self.robotWidth / 2
+    # REVIEW josephz: Figure out how to incorporate theta to differentiate the two cases?
+    # Validity for car length along the map length.
+    valid = self.mapImageBW[
+            max(0, y-halfLen):min(self.mapHeight, y+halfLen),
+            max(0, x-halfWidth):min(self.mapWidth, x+halfWidth)]
 
-    return True  
+    # Validity for car length along the map width.
+    valid2 = self.mapImageBW[
+            max(0, y - halfWidth):min(self.mapHeight, y + halfWidth),
+            max(0, x - halfLen):min(self.mapWidth, x + halfLen)]
+
+    plt.figure()
+    valid[:] = 50
+    valid2[:] = 100
+    plt.imshow(np.squeeze(valid))
+    plt.imshow(np.squeeze(valid2))
+    plt.imshow(np.squeeze(self.mapImageBW))
+    # plt.show()
+    return np.sum(valid) == np.sum(valid2) == 0
 
   # Check if there is an unobstructed edge between the passed configs
   # config1, config2: The configurations to check (in meters and radians)
   # Returns false if obstructed edge, True otherwise
   def get_edge_validity(self, config1, config2):
     # -----------------------------------------------------------
-    # YOUR CODE HERE
+    # TODO: YOUR CODE HERE
     #
     # Check if endpoints are obstructed, if either is, return false
     # Find path between two configs using Dubins
@@ -75,10 +97,14 @@ class ObstacleManager(object):
     #            return False
     #    return True
 
-
-    return True
-
+    # REVIEW josephz: Is endpoint checking incorporated within path?
+    if not self.get_state_validity(config1): return False
+    if not self.get_state_validity(config2): return False
+    path = Dubins.dubins_path_planning(config1, config2, 1.0 / model.TURNING_RADIUS)
+    plt.show()
+    return all(self.get_state_validity(config) for config in path)
 
 # Test
 if __name__ == '__main__':
   # Write test code here!
+  pass

@@ -52,11 +52,11 @@ def euclidean_halton_graph(n, radius, bases, lower, upper, source, target, mapFi
     haltonIndex = 1
 
     if source is not None:
-      position.append(source)
-      num_vertices += 1
+        position.append(source)
+        numVertices += 1
     if target is not None:
-      position.append(target)
-      num_vertices += 1
+        position.append(target)
+        numVertices += 1
 
     while numVertices < n:
         p = wrap_around(numpy.array([halton_sequence_value(haltonIndex,base) for base in bases]))
@@ -118,7 +118,6 @@ if __name__ == "__main__":
     map_info = map_msg.info
     
     spaceDimension = 3
-
     if spaceDimension == 3:
         bases = [2,3,5]
 
@@ -128,7 +127,8 @@ if __name__ == "__main__":
     # Settings
     halton_points = 2 # TODO: Set this appropriately
     disc_radius = 1 # TODO: Set this appropriately
-    print(disc_radius)
+    print("disc_radius:", disc_radius)
+    print("halton_points:", halton_points)
 
     for i in range(1):
         print i
