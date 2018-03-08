@@ -161,6 +161,14 @@ def dubins_path_planning_from_origin(ex, ey, eyaw, c):
   # Set best_t,best_p,best_q, and best_mode to the t,p,q,and mode returned by the best planner
   #--------------------------------------------------------------------
 
+  # For each planner, calculate a path and score.
+  planners = [LSL, RSR, LSR, RSL, RLR, LRL]
+  projected_paths = [planner(alpha, beta, d) for planner in planners]
+  scores = [abs(t) + abs(p) + abs(q) for (t, p, q, _) in projected_paths]
+
+  # Calculate the best score and retrieve the path that produced it.
+  best_path_idx = np.argmax(scores)
+  best_t, best_p, best_q, best_mode =  projected_paths[best_path_idx]
 
   px, py, pyaw = generate_course([best_t, best_p, best_q], best_mode, best_cost) # Turns arc lengths into points along path
 
