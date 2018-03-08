@@ -2,7 +2,8 @@
 
 import rospy 
 import numpy as np
-from ta_lab4.srv import *
+from nav_msgs.srv import GetPlan
+from lab4.srv import *
 
 PLANNER_SERVICE_TOPIC = '/planner_node/get_plan' # The topic at which the service is available
 
@@ -23,8 +24,8 @@ if __name__ == '__main__':
   
   try:
     resp = get_plan(SOURCE,TARGET) # Get the plan from the service
-    print np.array(resp.plan).reshape(-1,3) # Reshape the plan to be nx3
-    print resp.success
+    print "resp.plan", np.array(resp.plan).reshape(-1,3) # Reshape the plan to be nx3
+    print "resp.success", resp.success
   except rospy.ServiceException, e:
     print 'Service call failed: %s'%e
     
