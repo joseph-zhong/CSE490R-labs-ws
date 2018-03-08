@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import math
 import IPython
 import numpy as np
@@ -148,7 +150,7 @@ def dubins_path_planning_from_origin(ex, ey, eyaw, c):
   best_cost = float("inf")
 
   #-------------------------------------------------------------------
-  # YOUR CODE HERE
+  # TODO: YOUR CODE HERE
   #
   # Loop through all 6 of the planners, asking each one to compute a path
   #   Each planner will return t,p,q and mode
