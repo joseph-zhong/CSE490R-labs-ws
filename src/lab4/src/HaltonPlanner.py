@@ -69,7 +69,7 @@ class HaltonPlanner(object):
 
         # Score must be better to be worth recording.
         # If neighbor is not in self.gValues, value is interpreted as infinity.
-        if neighbor in self.gValues and gValue >= self.gValues[neighbor]
+        if neighbor in self.gValues and gValue >= self.gValues[neighbor]:
           continue  # Score is not better
 
         self.parent[neighbor] = current  # Record backpointer
