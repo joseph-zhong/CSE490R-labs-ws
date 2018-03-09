@@ -31,7 +31,7 @@ class ObstacleManager(object):
     # Binarize the Image
     self.mapImageBW = 255*numpy.ones_like(self.mapImageGS, dtype=numpy.uint8)
     self.mapImageBW[self.mapImageGS==0] = 0
-    self.mapImageBW = self.mapImageBW[::-1,:,:] # Need to flip across the y-axis
+    self.mapImageBW = self.mapImageBW # [::-1, :, :] # Need to flip across the y-axis
     print "self.mapImageBW.shape:", self.mapImageBW.shape
 
     # Obtain the car length and width in pixels
@@ -57,9 +57,8 @@ class ObstacleManager(object):
     # map for simplicity
     # ----------------------------------------------------------
 
-    print "mapConfig:", mapConfig
     assert isinstance(mapConfig, (list, tuple)) and len(mapConfig) == 3
-    y, x, theta = mapConfig
+    x, y, theta = mapConfig
     halfLen = self.robotLength / 2
     halfWidth = self.robotWidth / 2
     # REVIEW josephz: Figure out how to incorporate theta to differentiate the two cases?
@@ -72,13 +71,12 @@ class ObstacleManager(object):
     valid2 = self.mapImageBW[
             max(0, y - halfWidth):min(self.mapHeight, y + halfWidth),
             max(0, x - halfLen):min(self.mapWidth, x + halfLen)]
-
-    plt.figure()
-    valid[:] = 50
-    valid2[:] = 100
-    plt.imshow(np.squeeze(valid))
-    plt.imshow(np.squeeze(valid2))
-    plt.imshow(np.squeeze(self.mapImageBW))
+    # plt.figure()
+    # valid[:] = 50
+    # valid2[:] = 100
+    # plt.imshow(np.squeeze(self.mapImageBW))
+    # plt.imshow(np.squeeze(a))
+    # plt.imshow(np.squeeze(b))
     # plt.show()
     return np.sum(valid) == np.sum(valid2) == 0
 
@@ -104,8 +102,6 @@ class ObstacleManager(object):
     #    return True
 
     # REVIEW josephz: Is endpoint checking incorporated within path?
-    if not self.get_state_validity(config1): return False
-    if not self.get_state_validity(config2): return False
     path = Dubins.dubins_path_planning(config1, config2, 1.0 / model.TURNING_RADIUS)
     plt.show()
     return all(self.get_state_validity(config) for config in path)
@@ -114,10 +110,6 @@ class ObstacleManager(object):
 if __name__ == '__main__':
   print "Starting obstacle manager"
   rospy.init_node("obstacle_manager_test", anonymous=True)
-
-  in_bounds = [-10.8084335327, -22.6137657166, 0.0]
-  out_bounds = [-3.07820796967, -11.4502191544, 1.0]
-  on_wall = [2.70266675949, 0.56733494997, 2.0]
 
   # Get the map
   map_service_name = rospy.get_param("~static_map", "static_map")
@@ -128,18 +120,21 @@ if __name__ == '__main__':
   # Create the obstacle manager
   obs_manager = ObstacleManager(map_msg)
 
-  print "Bounds 1:", in_bounds
-  print "Bounds 2:", out_bounds
-  print "Bounds 3:", on_wall
+  print "Testing middle of the hall way"
+  print "In hall with skinny triangle: Should be True...", obs_manager.get_state_validity([0.62338411808, -0.209855854511, 0.0])
+  print "Skinny triangle: Should be False...", obs_manager.get_state_validity([-0.226983860135, 1.16524136066, 0.0])
+  print "Next to chair: Should be False...", obs_manager.get_state_validity([2.71258091927, 2.31397628784, 0.0])
+  print "Inside chair: Should be False...", obs_manager.get_state_validity([2.07119321823, 3.0112221241, 0.0])
 
-  bound1_valid = obs_manager.get_state_validity(in_bounds)
-  bound2_valid = obs_manager.get_state_validity(out_bounds)
-  bound3_valid = obs_manager.get_state_validity(on_wall)
+  print "Testing inside square"
+  print "Upper Left corner inside: Should be False...", obs_manager.get_state_validity([10.3908414841, 14.4619655609, 0.0])
+  print "Bottom Left corner inside: Should be False...", obs_manager.get_state_validity([3.79972362518, 8.73226356506, 0.0])
+  print "Upper Right corner inside: Should be False...", obs_manager.get_state_validity([17.0216236115, 7.27234268188, 0.0])
+  print "Bottom Right corner inside: Should be False...", obs_manager.get_state_validity([10.4382705688, 1.49695897102, 0.0])
 
-  print "Is in_bounds valid?", bound1_valid
-  print "Is out_bounds valid?", bound2_valid
-  print "Is on_wall valid?", bound3_valid
-
-
-  # Tim can write this test
-  # Write test code here!
+  print "Testing middle square"
+  print "Upper Left corner middle: Should be True...", obs_manager.get_state_validity([10.4908685684, 15.4024438858, 0.0])
+  print "Bottom Left corner middle: Should be True...", obs_manager.get_state_validity([3.07843399048, 8.75644397736, 0.0])
+  print "Upper Right corner middle: Should be True...", obs_manager.get_state_validity([17.6345787048, 7.33979320526, 0.0])
+  print "Bottom Right corner middle: Should be True...", obs_manager.get_state_validity([9.97846317291, 0.0722773820162, 0.0])
+  plt.show()
