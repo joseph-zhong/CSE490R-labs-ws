@@ -167,11 +167,21 @@ def dubins_path_planning_from_origin(ex, ey, eyaw, c):
   # For each planner, calculate a path and score.
   planners = [LSL, RSR, LSR, RSL, RLR, LRL]
   projected_paths = [planner(alpha, beta, d) for planner in planners]
+
+  # Filter out NONE instances
+  def valid_arcs(tqpm):
+    t, q, p, _ = tqpm
+    return not (t is None or q is None or p is None)
+
+  projected_paths = filter(valid_arcs, projected_paths)
+
+  # Score each rollout
   scores = [abs(t) + abs(p) + abs(q) for (t, p, q, _) in projected_paths]
 
   # Calculate the best score and retrieve the path that produced it.
-  best_path_idx = np.argmax(scores)
+  best_path_idx = np.argmin(scores)  # Smallest total arc length
   best_t, best_p, best_q, best_mode =  projected_paths[best_path_idx]
+  best_cost = scores[best_path_idx]
 
   px, py, pyaw = generate_course([best_t, best_p, best_q], best_mode, best_cost) # Turns arc lengths into points along path
 
@@ -298,18 +308,52 @@ def process_dubins(startx, starty, enda, px, py, pa, cost):
 
   return px, py, pa, cost
 
-def main():
-  print "Starting Dubins"
-  rospy.init_node("dubins", anonymous=True)
-  dx = 1.0
-  dy = 0.0
-  d_theta = 0.0
+
+def dubin_rollout(dx, dy, d_theta, test_msg):
+  print test_msg
   c = 1.0 / model.TURNING_RADIUS
 
   px, py, pyaw, best_mode, best_cost = dubins_path_planning_from_origin(dx, dy, d_theta, c)
-  print "px", px, "py", py, "pyaw", pyaw, "best_mode", best_mode, "best_cost", best_cost
+  print "px", px
+  print "py", py
+  print "pyaw", pyaw
+  print "best_mode", best_mode
+  print "best_cost", best_cost
+  print
+
+def dubin_rollout_integration(s, e, test_msg, i=1):
+  """
+  Performs a calculation of a Dubin's path; prints every 10th configuration.
+  """
+
+  print test_msg
+  c = 1.0 / model.TURNING_RADIUS
+
+  px, py, pyaw, cost = dubins_path_planning(s, e, c)
+  print "px", px[::i]
+  print "py", py[::i]
+  print "pyaw", pyaw[::i]
+  print "cost", cost
+  print
+
+def main():
+  print "Starting Dubins"
 
   # Write TEST CODE HERE!
+  p0 = (0.0, 0.0, 0.0)
+  p1 = (1.0, 0.0, 0.0)
+  p2 = (0.0, 1.0, 0.0)
+  p3 = (1.0, 1.0, 0.0)
+
+  # Driving straight on x
+  dubin_rollout_integration(p0, p1, "Driving straight on x:")
+
+  # Driving straight on y
+  dubin_rollout_integration(p0, p2, "Driving straight on y:", i=10)
+
+  # Mix of x and y:
+  dubin_rollout_integration(p0, p3, "Mix of X and Y:", i=10)
+
 
 if __name__ == '__main__':
   main()
