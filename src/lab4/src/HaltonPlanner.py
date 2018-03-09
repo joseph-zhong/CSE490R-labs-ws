@@ -1,3 +1,4 @@
+import heapq
 import math
 import numpy
 import IPython
@@ -23,10 +24,13 @@ class HaltonPlanner(object):
     self.sid = self.planningEnv.graph.number_of_nodes() - 2 # Get source id
     self.tid = self.planningEnv.graph.number_of_nodes() - 1 # Get target id
 
-    self.closed = {} # The closed list
-    self.parent = {self.sid:None} # A dictionary mapping children to their parents
-    self.open = {self.sid: 0 + self.planningEnv.get_heuristic(self.sid, self.tid)} # The open list
-    self.gValues = {self.sid:0} # A mapping from node to shortest found path length to that node 
+    self.closed = set()  # The closed list
+    self.parent = {self.sid:None}  # A dictionary mapping children to their parents
+    self.open = set(self.sid)  # The open list
+    self.gValues = {self.sid:0}  # A mapping from node to shortest found path length to that node
+
+    # Prority is based on true cost + heuristic (placed first for heapq use):
+    self.priorities = [(0 + self.planningEnv.get_heuristic(self.sid, self.tid), self.sid)]
 
     # ------------------------------------------------------------
     # YOUR CODE HERE
@@ -45,13 +49,13 @@ class HaltonPlanner(object):
     #-------------------------------------------------------------
 
     while len(self.open) != 0:
-      current = min(self.open, key=self.open.get)  # Collect node with lowest g + h score
+      current = heapq.heappop(self.priorities)[1]  # Collect node with lowest g + h score
 
       if current == self.tid:  # Path is found from start to goal; return the path
         return self.get_solution(self.tid)
 
-      self.closed[current] = self.open[current]
-      del self.open[current]
+      self.closed.add(current)
+      self.open.remove(current)
 
       neighbors = self.planningEnv.get_successors(current)
       for neighbor in neighbors:
@@ -63,7 +67,7 @@ class HaltonPlanner(object):
         distance = self.planningEnv.get_distance(current, neighbor)
 
         if neighbor not in self.open:
-          self.open[neighbor] = heuristic  # Add neighbor to the open set with h
+          self.open(neighbor)  # Add neighbor to the open set
 
         gValue = self.gValues[current] + distance  # Distance from current to neighbor
 
@@ -74,7 +78,9 @@ class HaltonPlanner(object):
 
         self.parent[neighbor] = current  # Record backpointer
         self.gValues[neighbor] = gValue  # Record distance
-        self.open[neighbor] += self.gValues[current]  # self.open maps to g + h values
+
+        # Update priority queue
+        heapq.heappush(self.priorities, (self.gValues[neighbor] + heurstic, neighbor))
 
 
     return []
