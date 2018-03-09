@@ -10,7 +10,6 @@ import Utils
 import time
 import random
 
-
 class HaltonPlanner(object):
 
   # planningEnv: Should be a HaltonEnvironment
@@ -80,8 +79,7 @@ class HaltonPlanner(object):
         self.gValues[neighbor] = gValue  # Record distance
 
         # Update priority queue
-        heapq.heappush(self.priorities, (self.gValues[neighbor] + heurstic, neighbor))
-
+        heapq.heappush(self.priorities, (self.gValues[neighbor] + heuristic, neighbor))
 
     return []
 

@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import KinematicModel as model
 
-import PlannerNode
+# import PlannerNode
 import rospy
 
 show_animation = True
