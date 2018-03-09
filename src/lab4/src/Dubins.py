@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import KinematicModel as model
 
+import PlannerNode
 import rospy
 
 show_animation = True
@@ -330,6 +331,8 @@ def dubin_rollout_integration(s, e, test_msg, i=1):
   c = 1.0 / model.TURNING_RADIUS
 
   px, py, pyaw, cost = dubins_path_planning(s, e, c)
+  planner_node = PlannerNode.PlannerNode()
+  planner_node.planner.simulate(np.array([px, py, pyaw]))
   print "px", px[::i]
   print "py", py[::i]
   print "pyaw", pyaw[::i]
