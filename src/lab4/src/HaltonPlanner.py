@@ -25,7 +25,7 @@ class HaltonPlanner(object):
 
     self.closed = set()  # The closed list
     self.parent = {self.sid:None}  # A dictionary mapping children to their parents
-    self.open = set(self.sid)  # The open list
+    self.open = set([self.sid])  # The open list
     self.gValues = {self.sid:0}  # A mapping from node to shortest found path length to that node
 
     # Prority is based on true cost + heuristic (placed first for heapq use):
@@ -66,7 +66,7 @@ class HaltonPlanner(object):
         distance = self.planningEnv.get_distance(current, neighbor)
 
         if neighbor not in self.open:
-          self.open(neighbor)  # Add neighbor to the open set
+          self.open.add(neighbor)  # Add neighbor to the open set
 
         gValue = self.gValues[current] + distance  # Distance from current to neighbor
 
