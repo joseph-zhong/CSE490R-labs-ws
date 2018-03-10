@@ -24,7 +24,7 @@ def main():
   def valid_pt(x, y):
     return x >= 0 and x < map_width and y >= 0 and y < map_height
 
- for config in configs:
+  for config in configs:
     x, y = config
     for yi in range(y - radius, y + radius):
       for xi in range(x - radius, x + radius):
