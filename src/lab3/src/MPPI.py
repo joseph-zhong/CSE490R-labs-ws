@@ -15,6 +15,7 @@ from nav_msgs.srv import GetMap
 from ackermann_msgs.msg import AckermannDriveStamped
 from vesc_msgs.msg import VescStateStamped
 from nav_msgs.msg import Path
+from std_msgs.msg import Bool
 from geometry_msgs.msg import PoseStamped, PoseArray, PoseWithCovarianceStamped, PointStamped
 
 MAX_ANGLE = 0.34
@@ -107,6 +108,8 @@ class MPPIController:
     self.pose_sub = rospy.Subscriber("/pf/viz/inferred_pose",
                                      PoseStamped, self.mppi_cb, queue_size=1)
 
+    self.is_close_pub = rospy.Publisher("is_close", Bool, queue_size=1)
+
   # TODO
   # You may want to debug your bounds checking code here, by clicking on a part
   # of the map and convincing yourself that you are correctly mapping the
@@ -161,6 +164,14 @@ class MPPIController:
 
     return pose_cost + ctrl_cost + bounds_check # Expected (K,)
 
+
+  def is_close_to_goal(self, curr_pose):
+    print "entered is_close_to_goal, curr_pose:", curr_pose, "goal:", self.goal
+    diff = torch.abs(curr_pose - self.goal)
+    angle_between = min(diff[2], np.pi * 2 - diff[2])
+    is_close = diff[0] >= DIST_THRES or diff[1] >= DIST_THRES or angle_between >= THETA_THRES
+    print "exiting is_close_to_goal, diff:", diff, "angle_between:", angle_between, "is close?", is_close
+    return is_close
 
   def mppi(self, curr_pose, init_input):
     t0 = time.time()
@@ -253,6 +264,7 @@ class MPPIController:
       poses = self.rollouts.transpose(0, 1)  # Input to particle_to_posestamped should be (K, T, 3)
       return run_ctrl, poses
     else:
+      self.is_close_pub.publish(True)
       return torch.cuda.FloatTensor([0.0, 0.0]), torch.cuda.FloatTensor(T, K, 3).zero_()
 
   def mppi_cb(self, msg):

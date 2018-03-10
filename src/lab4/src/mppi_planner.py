@@ -4,10 +4,12 @@ import csv
 import rospy
 import numpy as np
 import time
+
+from std_msgs.msg import Bool
+import utils as Utils
+
+from geometry_msgs.msg import PoseStamped
 from lab4.srv import *
-# from lab3.src import *
-# import lab3
-import MPPI
 
 from nav_msgs.srv import GetPlan
 
@@ -22,21 +24,38 @@ TARGET = [1.56, -34.16, 0]  # Where the plan should finish
 # SOURCE = [-8.76,  -2.04, 0.0]
 # TARGET = [-10.68,  -24.28, 0.0]
 
+class MPPI_Planner(object):
+  def __init__(self, blues, reds):
+    self.pose_sub = rospy.Subscriber("/pf/viz/inferred_pose", PoseStamped, self.inferred_pose_cb, queue_size=1)
+    self.goal_pub = rospy.Publisher("/move_base_simple/goal", PoseStamped, queue_size=1)
+    self.is_close_sub = rospy.Subscriber("is_close", Bool, self.is_close_cb, queue_size=1)
+
+    self.curr_pose = None
+    self.blues = blues
+    self.reds = reds
+    self.way_point_index = 0
+
+
+  def _process_waypoint(self):
+
+
+
+def inferred_pose_cb(self, msg):
+    self.curr_pose = np.array([msg.pose.position.x,
+                                 msg.pose.position.y,
+                                 Utils.quaternion_to_angle(msg.pose.orientation)])
+
+  def is_close_cb(self, msg):
+    self._process_waypoint()
+
 if __name__ == '__main__':
   print "[mppi_planner main:] entered main..."
 
-  import pdb
-  pdb.set_trace()
   rospy.init_node('planner_test', anonymous=True)  # Initialize the node
   rospy.wait_for_service(PLANNER_SERVICE_TOPIC)  # Wait for the service to become available if necessary
   get_plan = rospy.ServiceProxy(PLANNER_SERVICE_TOPIC, GetPlan)  # Setup a ros service client
 
-  # Set up MPPI Controller.
-  mp = MPPI.MPPIController()
-
-  # Initialize source and target.
-  source = mp.last_pose
-
+  # Process data.
   # Read csv for waypoints.
   print "[mppi_planner main:] Reading CSV for waypoints..."
   with open('dummy.csv', 'r') as fin:
@@ -50,25 +69,34 @@ if __name__ == '__main__':
   print "[mppi_planner main:] Successfully read CSV for '{}' blue and '{}' red waypoints".format(
     len(blues), len(reds))
 
+  # Instantiate MPPI Planner.
+  mp = MPPI_Planner(blues, reds)
+
+  x, y = blues[0]
+  target = tuple(x, y, 0)
+  try:
+    # Get the plan from the service, reshaped as (n, 3)
+    resp = get_plan(mp.curr_pose, target)
+    plan = np.array(resp.plan).reshape(-1, 3)
+
+    print "[mppi_planner main:] Iterating '{}' subgoals to target '{}'...".format(len(plan), target)
+    # Publish goal to MPPI.
+    for goal in plan:
+      mp.goal_pub.publish(Utils.particle_to_posestamped(target, 'map'))
+      # mp.goal_cb(goal)
+
+      # while not mp.is_close_to_goal(mp.last_pose):
+      #   print "[mppi_planner main] not close to goal, waiting..."
+      #   time.sleep(10)
+
+      print "resp.plan", plan
+      print "resp.success", resp.success
+  except rospy.ServiceException, e:
+    print 'Service call failed: %s' % e
+
+
+
   # Iterate through the waypoints as targets.
   print "[mppi_planner main:] Iterating through blue waypoint targets..."
-  for x, y in blues:
-    target = tuple(x, y, 0)
-    try:
-      # Get the plan from the service, reshaped as (n, 3)
-      resp = get_plan(source, target)
-      plan = np.array(resp.plan).reshape(-1, 3)
-
-      print "[mppi_planner main:] Iterating '{}' subgoals to target '{}'...".format(len(plan), target)
-      for goal in plan:
-        mp.goal_cb(goal)
-
-        while not mp.is_close_to_goal(mp.last_pose):
-          print "[mppi_planner main] not close to goal, waiting..."
-          time.sleep(10)
-
-        print "resp.plan", plan
-        print "resp.success", resp.success
-    except rospy.ServiceException, e:
-      print 'Service call failed: %s' % e
-
+  # REVIEW josephz: Sort blues in greedily short distance?
+  # for x, y in blues:
