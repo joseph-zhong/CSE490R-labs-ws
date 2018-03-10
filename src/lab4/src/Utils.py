@@ -81,4 +81,6 @@ def csv_to_configs(file_path):
         csv_reader = csv.reader(fin, delimiter=',')
         way_points = [row for row in csv_reader][1:]  # Skip header
 
-    return np.array(way_points, dtype=np.uint8)
+    return np.array(way_points).astype(np.int)
+
+
