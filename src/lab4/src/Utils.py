@@ -9,6 +9,8 @@ from geometry_msgs.msg import Point, Pose, PoseStamped, PoseArray, Quaternion, P
 import tf.transformations
 import tf
 import matplotlib.pyplot as plt
+import csv
+
 
 def angle_to_quaternion(angle):
     """Convert an angle in radians into a quaternion _message_."""
@@ -70,9 +72,13 @@ def map_to_world(pose, map_info):
     config[1] += map_info.origin.position.y
     config[2] = pose[2] + angle
 
-
     return config
 
+# returns numpy array with a shape of (N,2)
+def get_csv(file_path):
 
-      
-# TODO: You may want to add a map_to_world function
+    with open(file_path, 'r') as fin:
+        csv_reader = csv.reader(fin, delimiter=',')
+        way_points = [row for row in csv_reader][1:]  # Skip header
+
+    return np.array(way_points)
