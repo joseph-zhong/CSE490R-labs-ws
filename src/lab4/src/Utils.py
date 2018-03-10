@@ -75,10 +75,10 @@ def map_to_world(pose, map_info):
     return config
 
 # returns numpy array with a shape of (N,2)
-def get_csv(file_path):
+def csv_to_configs(file_path):
 
     with open(file_path, 'r') as fin:
         csv_reader = csv.reader(fin, delimiter=',')
         way_points = [row for row in csv_reader][1:]  # Skip header
 
-    return np.array(way_points)
+    return np.array(way_points, dtype=np.uint8)
