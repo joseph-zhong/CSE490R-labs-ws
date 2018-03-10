@@ -6,11 +6,11 @@ import time
 
 from std_msgs.msg import Bool
 import Utils as Utils
+from nav_msgs.srv import GetMap
+
 
 from geometry_msgs.msg import PoseStamped
 from lab4.srv import *
-
-from nav_msgs.srv import GetPlan
 
 PLANNER_SERVICE_TOPIC = '/planner_node/get_plan'  # The topic at which the service is available
 
@@ -28,17 +28,21 @@ class MPPI_Planner(object):
 
     self.goal_pub = rospy.Publisher("/move_base_simple/goal", PoseStamped, queue_size=1)
 
+    map_service_name = rospy.get_param("~static_map", "static_map")
+    print("Getting map from service: ", map_service_name)
+    rospy.wait_for_service(map_service_name)
+    map_msg = rospy.ServiceProxy(map_service_name, GetMap)().map  # The map, will get passed to init of sensor model
+    self.map_info = map_msg.info  # Save info about map for later use
+
     print "Waiting for planning service"
-    # rospy.wait_for_service(PLANNER_SERVICE_TOPIC)  # Wait for the service to become available if necessary
-    # self.get_plan = rospy.ServiceProxy(PLANNER_SERVICE_TOPIC, GetPlan)  # Setup a ros service client
+    rospy.wait_for_service(PLANNER_SERVICE_TOPIC)  # Wait for the service to become available if necessary
+    self.get_plan = rospy.ServiceProxy(PLANNER_SERVICE_TOPIC, GetPlan)  # Setup a ros service client
     print "Planning service is up"
 
     self.way_point_index = 0
 
-    import pdb
-    pdb.set_trace()
-    start_pose = Utils.get_csv("/home/tim/Documents/CSE 490/final/start.csv")
-    blues_array = Utils.get_csv("/home/tim/Documents/CSE 490/final/good_waypoints.csv")
+    start_pose = Utils.csv_to_configs("/home/tim/Documents/CSE 490/final/start.csv")
+    blues_array = Utils.csv_to_configs("/home/tim/Documents/CSE 490/final/good_waypoints.csv")
 
     self.full_path = self.process_all_blues(start_pose, blues_array)
 
@@ -65,8 +69,20 @@ class MPPI_Planner(object):
 
   # Returns a numpy array of shape (N, 3)
   def process_all_blues(self, start_pose, blues_array):
-    pass
+    start_pose_map = np.append(start_pose[0], 0)
+    first_blue_map = np.append(blues_array[0], 0)
+    start_pose_world = Utils.map_to_world(start_pose_map, self.map_info)
+    first_blue_world = Utils.map_to_world(first_blue_map, self.map_info)
 
+    try:
+      resp = self.get_plan(start_pose_world, first_blue_world)  # Get the plan from the service
+    except rospy.ServiceException, e:
+      print 'Service call failed: %s' % e
+
+      for i in range(0, blues_array.shape[0] -1):
+        new_resp = self.get_plan(blues_array[i], blues_array[i+1])
+        resp = np.append(resp, new_resp, axis=1)
+    return resp
 
 if __name__ == '__main__':
   print "[mppi_planner main:] entered main..."
