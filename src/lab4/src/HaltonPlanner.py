@@ -29,7 +29,7 @@ class HaltonPlanner(object):
 
     # Prority is based on true cost + heuristic (placed first for heapq use):
     self.priorities = [(0 + self.planningEnv.get_heuristic(self.sid, self.tid), self.sid)]
-
+    begginning = time.clock()
     # ------------------------------------------------------------
     # YOUR CODE HERE
     # 
@@ -83,6 +83,7 @@ class HaltonPlanner(object):
     #
     #   print "Time", time.clock() - start
 
+
     while len(self.open) != 0:
       start = time.clock()
       # print "Priority Queue:", len(self.priorities)
@@ -118,7 +119,7 @@ class HaltonPlanner(object):
         self.open[neighbor] = self.gValues[neighbor] + heuristic
 
       print "Time", time.clock() - start
-
+    print "Total Time ", time.clock() - begginning
 
 
     return []
@@ -185,5 +186,5 @@ class HaltonPlanner(object):
     cv2.imshow('Simulation', envMap)
 
     # Terminate and exit elegantly
-    cv2.waitKey(20000)
+    cv2.waitKey(90000)
     cv2.destroyAllWindows()
