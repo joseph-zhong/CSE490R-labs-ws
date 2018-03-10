@@ -103,8 +103,9 @@ class ObstacleManager(object):
 
     # REVIEW josephz: Is endpoint checking incorporated within path?
     path = Dubins.dubins_path_planning(config1, config2, 1.0 / model.TURNING_RADIUS)
-    plt.show()
-    return all(self.get_state_validity(config) for config in path)
+    xs, ys, thetas, _ = path
+    configs = [[xs[i], ys[i], thetas[i]] for i in range(len(xs))]
+    return all([self.get_state_validity(config) for config in configs])
 
 # Test
 if __name__ == '__main__':

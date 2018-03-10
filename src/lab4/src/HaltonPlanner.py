@@ -22,10 +22,9 @@ class HaltonPlanner(object):
   def plan(self):
     self.sid = self.planningEnv.graph.number_of_nodes() - 2 # Get source id
     self.tid = self.planningEnv.graph.number_of_nodes() - 1 # Get target id
-
+    self.open = {self.sid: 0 + self.planningEnv.get_heuristic(self.sid, self.tid)}
     self.closed = set()  # The closed list
     self.parent = {self.sid:None}  # A dictionary mapping children to their parents
-    self.open = set([self.sid])  # The open list
     self.gValues = {self.sid:0}  # A mapping from node to shortest found path length to that node
 
     # Prority is based on true cost + heuristic (placed first for heapq use):
@@ -47,14 +46,55 @@ class HaltonPlanner(object):
     #   the node ids that you have found.
     #-------------------------------------------------------------
 
+    # while len(self.priorities) != 0:
+    #   start = time.clock()
+    #   print "Priority Queue:", len(self.priorities)
+    #   print "Closed Set:", len(self.closed)
+    #
+    #   current = heapq.heappop(self.priorities)[1]  # Collect node with lowest g + h score
+    #
+    #   if current == self.tid:  # Path is found from start to goal; return the path
+    #     return self.get_solution(self.tid)
+    #
+    #   self.closed.add(current)
+    #
+    #   neighbors = self.planningEnv.get_successors(current)
+    #   for neighbor in neighbors:
+    #
+    #     if neighbor in self.closed:  # Already visisted
+    #         continue
+    #
+    #     h_start = time.clock()
+    #     heuristic = self.planningEnv.get_heuristic(current, neighbor)
+    #     print "H-TIME", time.clock() - h_start
+    #     distance = self.planningEnv.get_distance(current, neighbor)
+    #     gValue = self.gValues[current] + distance  # Distance from current to neighbor
+    #
+    #     # Score must be better to be worth recording.
+    #     # If neighbor is not in self.gValues, value is interpreted as infinity.
+    #     if neighbor in self.gValues and gValue >= self.gValues[neighbor]:
+    #       continue  # Score is not better
+    #
+    #     self.parent[neighbor] = current  # Record backpointer
+    #     self.gValues[neighbor] = gValue  # Record distance
+    #
+    #     # Update priority queue
+    #     heapq.heappush(self.priorities, (self.gValues[neighbor] + heuristic, neighbor))
+    #
+    #   print "Time", time.clock() - start
+
     while len(self.open) != 0:
-      current = heapq.heappop(self.priorities)[1]  # Collect node with lowest g + h score
+      start = time.clock()
+      # print "Priority Queue:", len(self.priorities)
+      print "Closed Set:", len(self.closed)
+
+      current = min(self.open, key=self.open.get)  # Collect node with lowest g + h score
 
       if current == self.tid:  # Path is found from start to goal; return the path
         return self.get_solution(self.tid)
 
       self.closed.add(current)
-      self.open.remove(current)
+      del self.open[current]
 
       neighbors = self.planningEnv.get_successors(current)
       for neighbor in neighbors:
@@ -64,10 +104,6 @@ class HaltonPlanner(object):
 
         heuristic = self.planningEnv.get_heuristic(current, neighbor)
         distance = self.planningEnv.get_distance(current, neighbor)
-
-        if neighbor not in self.open:
-          self.open.add(neighbor)  # Add neighbor to the open set
-
         gValue = self.gValues[current] + distance  # Distance from current to neighbor
 
         # Score must be better to be worth recording.
@@ -79,7 +115,11 @@ class HaltonPlanner(object):
         self.gValues[neighbor] = gValue  # Record distance
 
         # Update priority queue
-        heapq.heappush(self.priorities, (self.gValues[neighbor] + heuristic, neighbor))
+        self.open[neighbor] = self.gValues[neighbor] + heuristic
+
+      print "Time", time.clock() - start
+
+
 
     return []
 
