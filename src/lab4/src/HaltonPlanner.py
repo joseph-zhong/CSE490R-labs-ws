@@ -32,7 +32,7 @@ class HaltonPlanner(object):
     begginning = time.clock()
     # ------------------------------------------------------------
     # YOUR CODE HERE
-    # 
+    #
     # Implement A*
     # Functions that you will probably use
     # - self.get_solution()
@@ -143,7 +143,7 @@ class HaltonPlanner(object):
       # if we can find path between i and j (Hint: look inside ObstacleManager.py for a suitable function)
         # Get the path (Hint: use Dubins)
         # Reformat the plan such that the new path is inserted and the old section of the path is removed between i and j
-        # Be sure to CAREFULLY inspect the data formats of both the original plan and the plan returned by Dubins 
+        # Be sure to CAREFULLY inspect the data formats of both the original plan and the plan returned by Dubins
         # to ensure that you edit the path correctly
       # ----------------------------------------------------------
       elapsed = time.time() - t1
@@ -186,5 +186,5 @@ class HaltonPlanner(object):
     cv2.imshow('Simulation', envMap)
 
     # Terminate and exit elegantly
-    cv2.waitKey(90000)
+    cv2.waitKey(20000)
     cv2.destroyAllWindows()

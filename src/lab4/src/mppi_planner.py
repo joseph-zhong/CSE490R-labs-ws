@@ -74,14 +74,19 @@ class MPPI_Planner(object):
     start_pose_world = Utils.map_to_world(start_pose_map, self.map_info)
     first_blue_world = Utils.map_to_world(first_blue_map, self.map_info)
 
-    try:
-      resp = self.get_plan(start_pose_world, first_blue_world)  # Get the plan from the service
-    except rospy.ServiceException, e:
-      print 'Service call failed: %s' % e
+    resp = self.get_plan(start_pose_world, first_blue_world)  # Get the plan from the service
+    resp = np.array(resp.plan).reshape(-1, 3)
 
-      for i in range(0, blues_array.shape[0] -1):
-        new_resp = self.get_plan(blues_array[i], blues_array[i+1])
-        resp = np.append(resp, new_resp, axis=1)
+    for i in range(0, blues_array.shape[0] - 1):
+      print "In the planning loop, and i is ", i
+      blue_world = Utils.map_to_world(np.append(blues_array[i], 0), self.map_info)
+      next_blue_world = Utils.map_to_world(np.append(blues_array[i + 1], 0), self.map_info)
+      new_resp = self.get_plan(blue_world, next_blue_world)
+      new_resp = np.array(new_resp.plan).reshape(-1, 3)
+      resp = np.append(resp, new_resp, axis=0)
+
+    import pdb
+    pdb.set_trace()
     return resp
 
 if __name__ == '__main__':
