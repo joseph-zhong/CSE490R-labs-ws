@@ -83,7 +83,7 @@ def map_to_world(poses,map_info):
     poses[:,1] += map_info.origin.position.y
     poses[:,2] += angle
 
-def world_to_map_th(poses, map_info):
+def world_to_map(poses, map_info):
     # equivalent to map_to_grid(world_to_map(poses))
     # operates in place
     scale = map_info.resolution
