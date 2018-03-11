@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import os
 import rospy
 import numpy as np
 import time
@@ -23,6 +24,10 @@ PLANNER_SERVICE_TOPIC = '/planner_node/get_plan'  # The topic at which the servi
 # SOURCE = [-8.76,  -2.04, 0.0]
 # TARGET = [-10.68,  -24.28, 0.0]
 
+START_POSE_FNAME = "maps/start.csv"
+GOOD_WAYPOINTS_FNAME = "maps/good_waypoints.csv"
+DUBINS_PATH_FNAME = 'paths/full_dubins_path.npy'
+
 class MPPI_Planner(object):
   def __init__(self):
 
@@ -41,37 +46,21 @@ class MPPI_Planner(object):
 
     self.way_point_index = 0
 
-    start_pose = Utils.csv_to_configs("/home/tim/Documents/CSE 490/final/start.csv")
-    blues_array = Utils.csv_to_configs("/home/tim/Documents/CSE 490/final/good_waypoints.csv")
+    print "Reading starting pose and blue_array..."
+    assert os.path.isfile(START_POSE_FNAME), "{} not found, make sure to run from a dir relative to that file, try `roscd lab4`".format(START_POSE_FNAME)
+    assert os.path.isfile(GOOD_WAYPOINTS_FNAME), "{} not found, make sure to run from a dir relative to that file, try `roscd lab4`".format(GOOD_WAYPOINTS_FNAME)
+    start_pose = Utils.csv_to_configs(START_POSE_FNAME)
+    blues_array = Utils.csv_to_configs(GOOD_WAYPOINTS_FNAME)
 
     self.full_path = self.process_all_blues(start_pose, blues_array)
-
-    self.is_close_sub = rospy.Subscriber("is_close", Bool, self.is_close_cb, queue_size=1)
-
-  # When this is called, we know we made it to our last goal
-  def _process_waypoint(self):
-    print "Processing the next waypoint"
-    next_goal = self.blues[self.way_point_index]
-    goal_pose = PoseStamped()
-    goal_pose.header.frame_id = "map"
-    goal_pose.pose.position.x = next_goal[0]
-    goal_pose.pose.position.y = next_goal[1]
-    goal_pose.pose.orientation = Utils.angle_to_quaternion(next_goal[2])
-    self.goal_pub.publish(next_goal)
-
-
-  # def inferred_pose_cb(self, msg):
-  #   self.curr_pose = np.array([msg.pose.position.x, msg.pose.position.y, Utils.quaternion_to_angle(msg.pose.orientation)])
-
-
-  def is_close_cb(self, msg):
-    self._process_waypoint()
+    np.save('paths/full_dubins_path.npy', self.full_path)
 
   # Returns a numpy array of shape (N, 3)
   def process_all_blues(self, start_pose, blues_array):
+    print "[mppi_planner process_all_blues:] entering process_all_blues..."
     all_poses = np.concatenate((start_pose, blues_array), axis=0)
 
-    print "All Poses", all_poses
+    print "[mppi_planner process_all_blues:] All Poses:", all_poses
 
     # start_pose_map = np.append(start_pose[0], Utils.angle_between_points(start_pose[0], blues_array[0]))
     # first_blue_map = np.append(blues_array[0], Utils.angle_between_points(blues_array[0], blues_array[1]))
@@ -88,22 +77,22 @@ class MPPI_Planner(object):
     # import pdb
     # pdb.set_trace()
     for i in range(1, len_all_poses):
-      print "In the planning loop, and i is ", i
+      print "[mppi_planner process_all_blues: loop:] i:", i
       if i == len_all_poses - 1:
         theta_curr = 0
       else:
         theta_curr = Utils.angle_between_points(all_poses[i], all_poses[i + 1])
 
       theta_prev = Utils.angle_between_points(all_poses[i - 1], all_poses[i])
-      print "Theta prev:", theta_prev
+      print "[mppi_planner process_all_blues:] Theta prev:", theta_prev
       prev = Utils.map_to_world(np.append(all_poses[i - 1], theta_prev), self.map_info)
       curr = Utils.map_to_world(np.append(all_poses[i], theta_curr), self.map_info)
       new_resp = self.get_plan(prev, curr)
-      print new_resp
+      print "[mppi_planner process_all_blues:] new_resp:", new_resp
       new_resp = np.array(new_resp.plan).reshape(-1, 3)
       resp = np.append(resp, new_resp, axis=0)
 
-    print resp
+    print "[mppi_planner process_all_blues:] resp:", resp
     return resp
 
 if __name__ == '__main__':
@@ -116,32 +105,4 @@ if __name__ == '__main__':
 
 
 
-  #
-  # x, y = blues[0]
-  # target = tuple(x, y, 0)
-  # try:
-  #   # Get the plan from the service, reshaped as (n, 3)
-  #   resp = get_plan(mp.curr_pose, target)
-  #   plan = np.array(resp.plan).reshape(-1, 3)
-  #
-  #   print "[mppi_planner main:] Iterating '{}' subgoals to target '{}'...".format(len(plan), target)
-  #   # Publish goal to MPPI.
-  #   for goal in plan:
-  #     mp.goal_pub.publish(Utils.particle_to_posestamped(target, 'map'))
-  #     # mp.goal_cb(goal)
-  #
-  #     # while not mp.is_close_to_goal(mp.last_pose):
-  #     #   print "[mppi_planner main] not close to goal, waiting..."
-  #     #   time.sleep(10)
-  #
-  #     print "resp.plan", plan
-  #     print "resp.success", resp.success
-  # except rospy.ServiceException, e:
-  #   print 'Service call failed: %s' % e
-  #
-  #
-  #
-  # # Iterate through the waypoints as targets.
-  # print "[mppi_planner main:] Iterating through blue waypoint targets..."
-  # # REVIEW josephz: Sort blues in greedily short distance?
-  # # for x, y in blues:
+# TODO: Smart Blues Sorting?

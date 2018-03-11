@@ -9,12 +9,14 @@ import cv2
 import Utils
 import time
 import random
+import numpy as np
 
 class HaltonPlanner(object):
 
   # planningEnv: Should be a HaltonEnvironment
   def __init__(self, planningEnv):
     self.planningEnv = planningEnv
+    self.plans = []
 
   # Generate a plan
   # Assumes that the source and target were inserted just prior to calling this
@@ -46,27 +48,24 @@ class HaltonPlanner(object):
     #   the node ids that you have found.
     #-------------------------------------------------------------
 
-    while len(self.priorities) != 0:
+    loopTimes = []
+    planStart = time.clock()
+    while len(self.priorities) > 0:
       start = time.clock()
       print "Priority Queue:", len(self.priorities)
       print "Closed Set:", len(self.closed)
 
       current = heapq.heappop(self.priorities)[1]  # Collect node with lowest g + h score
-
       if current == self.tid:  # Path is found from start to goal; return the path
         return self.get_solution(self.tid)
-
       self.closed.add(current)
 
       neighbors = self.planningEnv.get_successors(current)
       for neighbor in neighbors:
-
         if neighbor in self.closed:  # Already visisted
             continue
 
-        h_start = time.clock()
         heuristic = self.planningEnv.get_heuristic(current, neighbor)
-        print "H-TIME", time.clock() - h_start
         distance = self.planningEnv.get_distance(current, neighbor)
         gValue = self.gValues[current] + distance  # Distance from current to neighbor
 
@@ -80,48 +79,10 @@ class HaltonPlanner(object):
 
         # Update priority queue
         heapq.heappush(self.priorities, (self.gValues[neighbor] + heuristic, neighbor))
-
-      print "Time", time.clock() - start
-
-    #
-    # while len(self.open) != 0:
-    #   start = time.clock()
-    #   # print "Priority Queue:", len(self.priorities)
-    #   print "Closed Set:", len(self.closed)
-    #
-    #   current = min(self.open, key=self.open.get)  # Collect node with lowest g + h score
-    #
-    #   if current == self.tid:  # Path is found from start to goal; return the path
-    #     return self.get_solution(self.tid)
-    #
-    #   self.closed.add(current)
-    #   del self.open[current]
-    #
-    #   neighbors = self.planningEnv.get_successors(current)
-    #   for neighbor in neighbors:
-    #
-    #     if neighbor in self.closed:  # Already visisted
-    #         continue
-    #
-    #     heuristic = self.planningEnv.get_heuristic(current, neighbor)
-    #     distance = self.planningEnv.get_distance(current, neighbor)
-    #     gValue = self.gValues[current] + distance  # Distance from current to neighbor
-    #
-    #     # Score must be better to be worth recording.
-    #     # If neighbor is not in self.gValues, value is interpreted as infinity.
-    #     if neighbor in self.gValues and gValue >= self.gValues[neighbor]:
-    #       continue  # Score is not better
-    #
-    #     self.parent[neighbor] = current  # Record backpointer
-    #     self.gValues[neighbor] = gValue  # Record distance
-    #
-    #     # Update priority queue
-    #     self.open[neighbor] = self.gValues[neighbor] + heuristic
-    #
-    #   print "Time", time.clock() - start
-    # print "Total Time ", time.clock() - begginning
-
-
+      loopTime = time.clock() - start
+      print "Loop Time", loopTime
+      loopTimes.append(loopTime)
+    print "Total Planning Time", time.clock() - planStart, "Average Loop Time", np.mean(loopTimes)
     return []
 
   # Try to improve the current plan by repeatedly checking if there is a shorter path between random pairs of points in the path
@@ -176,10 +137,12 @@ class HaltonPlanner(object):
     envMap = 255*(self.planningEnv.manager.mapImageBW+1) # Hacky way to get correct coloring
     envMap = cv2.cvtColor(envMap, cv2.COLOR_GRAY2RGB)
 
-    for i in range(numpy.shape(plan)[0]-1): # Draw lines between each configuration in the plan
-      startPixel = Utils.world_to_map(plan[i], self.planningEnv.manager.map_info)
-      goalPixel = Utils.world_to_map(plan[i+1], self.planningEnv.manager.map_info)
-      cv2.line(envMap,(startPixel[0],startPixel[1]),(goalPixel[0],goalPixel[1]),(255,0,0),5)
+    self.plans.append(plan)
+    for p in self.plans:
+      for i in range(numpy.shape(p)[0]-1): # Draw lines between each configuration in the plan
+        startPixel = Utils.world_to_map(p[i], self.planningEnv.manager.map_info)
+        goalPixel = Utils.world_to_map(p[i+1], self.planningEnv.manager.map_info)
+        cv2.line(envMap, (startPixel[0], startPixel[1]), (goalPixel[0], goalPixel[1]), (255, 0, 0), 5)
 
     # # Generate window
     # cv2.namedWindow('Simulation' + str(self.count), cv2.WINDOW_NORMAL)

@@ -33,6 +33,8 @@ def main():
 
   # Save as 'original_name_radiusX.pgm'
   img_name = map_pgm.split(".")[0] + "_radius" + str(radius) + ".pgm"
+  print img_name
+
   cv2.imwrite(img_name, map_img)
 
 

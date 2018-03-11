@@ -137,6 +137,6 @@ if __name__ == "__main__":
         riskmapFile = 'haltonGraph.graphml'
 
         # Generate the graph
-        print 'Generating the graph'
+        print 'Generating the graph at', riskmapFile
         G = euclidean_halton_graph(halton_points, disc_radius, bases, lower, upper, None, None, map_msg)
         nx.write_graphml(G, riskmapFile)
