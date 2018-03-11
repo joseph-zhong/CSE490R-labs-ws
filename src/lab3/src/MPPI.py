@@ -103,10 +103,8 @@ class MPPIController:
     print "The size of the permissible region is:", self.permissible_region.shape
 
     print("Making callbacks")
-    self.goal_sub = rospy.Subscriber("/move_base_simple/goal",
-                                     PoseStamped, self.clicked_goal_cb, queue_size=1)
-    self.pose_sub = rospy.Subscriber("/pf/viz/inferred_pose",
-                                     PoseStamped, self.mppi_cb, queue_size=1)
+    self.goal_sub = rospy.Subscriber("/move_base_simple/goal", PoseStamped, self.clicked_goal_cb, queue_size=1)
+    self.pose_sub = rospy.Subscriber("/pf/viz/inferred_pose", PoseStamped, self.mppi_cb, queue_size=1)
 
     self.is_close_pub = rospy.Publisher("is_close", Bool, queue_size=1)
 

@@ -38,9 +38,6 @@ class ObstacleManager(object):
     self.robotWidth = int(model.CAR_WIDTH/self.map_info.resolution + 0.5)
     self.robotLength = int(model.CAR_LENGTH/self.map_info.resolution + 0.5)
 
-    # REVIEW josephz: Read the CSV here and modify pixels in self.mapImageBW.
-
-
   def get_state_validity(self, config):
     """ Check if the passed config is in collision
     config: The configuration to check (in meters and radians)
