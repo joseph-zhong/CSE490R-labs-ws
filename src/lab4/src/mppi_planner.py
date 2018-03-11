@@ -69,24 +69,41 @@ class MPPI_Planner(object):
 
   # Returns a numpy array of shape (N, 3)
   def process_all_blues(self, start_pose, blues_array):
-    start_pose_map = np.append(start_pose[0], 0)
-    first_blue_map = np.append(blues_array[0], 0)
-    start_pose_world = Utils.map_to_world(start_pose_map, self.map_info)
-    first_blue_world = Utils.map_to_world(first_blue_map, self.map_info)
+    all_poses = np.concatenate((start_pose, blues_array), axis=0)
 
-    resp = self.get_plan(start_pose_world, first_blue_world)  # Get the plan from the service
-    resp = np.array(resp.plan).reshape(-1, 3)
+    print "All Poses", all_poses
 
-    for i in range(0, blues_array.shape[0] - 1):
+    # start_pose_map = np.append(start_pose[0], Utils.angle_between_points(start_pose[0], blues_array[0]))
+    # first_blue_map = np.append(blues_array[0], Utils.angle_between_points(blues_array[0], blues_array[1]))
+    # start_pose_world = Utils.map_to_world(start_pose_map, self.map_info)
+    # first_blue_world = Utils.map_to_world(first_blue_map, self.map_info)
+    #
+    # print "Planning from", start_pose_map, "to ", first_blue_map
+    # resp = self.get_plan(start_pose_world, first_blue_world)  # Get the plan from the service
+    # resp = np.array(resp.plan).reshape(-1, 3)
+
+    len_all_poses = all_poses.shape[0]
+    resp = np.empty((0, 3))
+
+    # import pdb
+    # pdb.set_trace()
+    for i in range(1, len_all_poses):
       print "In the planning loop, and i is ", i
-      blue_world = Utils.map_to_world(np.append(blues_array[i], 0), self.map_info)
-      next_blue_world = Utils.map_to_world(np.append(blues_array[i + 1], 0), self.map_info)
-      new_resp = self.get_plan(blue_world, next_blue_world)
+      if i == len_all_poses - 1:
+        theta_curr = 0
+      else:
+        theta_curr = Utils.angle_between_points(all_poses[i], all_poses[i + 1])
+
+      theta_prev = Utils.angle_between_points(all_poses[i - 1], all_poses[i])
+      print "Theta prev:", theta_prev
+      prev = Utils.map_to_world(np.append(all_poses[i - 1], theta_prev), self.map_info)
+      curr = Utils.map_to_world(np.append(all_poses[i], theta_curr), self.map_info)
+      new_resp = self.get_plan(prev, curr)
+      print new_resp
       new_resp = np.array(new_resp.plan).reshape(-1, 3)
       resp = np.append(resp, new_resp, axis=0)
 
-    import pdb
-    pdb.set_trace()
+    print resp
     return resp
 
 if __name__ == '__main__':

@@ -112,7 +112,7 @@ if __name__ == "__main__":
     map_service_name = rospy.get_param("~static_map", "static_map")
     print("Getting map from service: ", map_service_name)
     rospy.wait_for_service(map_service_name)
-    
+
     graph_file = rospy.get_param("~graph_file", None)
     map_msg = rospy.ServiceProxy(map_service_name, GetMap)().map
     map_info = map_msg.info
@@ -125,8 +125,8 @@ if __name__ == "__main__":
     upper = numpy.array([map_info.origin.position.x+map_info.resolution*map_info.width, map_info.origin.position.y+map_info.resolution*map_info.height, 2*numpy.pi])
 
     # Settings
-    halton_points = 2 # TODO: Set this appropriately
-    disc_radius = 1 # TODO: Set this appropriately
+    halton_points = 300 # TODO: Set this appropriately
+    disc_radius = 10 # TODO: Set this appropriately
     print("disc_radius:", disc_radius)
     print("halton_points:", halton_points)
 

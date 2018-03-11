@@ -22,7 +22,7 @@ class HaltonPlanner(object):
   def plan(self):
     self.sid = self.planningEnv.graph.number_of_nodes() - 2 # Get source id
     self.tid = self.planningEnv.graph.number_of_nodes() - 1 # Get target id
-    self.open = {self.sid: 0 + self.planningEnv.get_heuristic(self.sid, self.tid)}
+    # self.open = {self.sid: 0 + self.planningEnv.get_heuristic(self.sid, self.tid)}
     self.closed = set()  # The closed list
     self.parent = {self.sid:None}  # A dictionary mapping children to their parents
     self.gValues = {self.sid:0}  # A mapping from node to shortest found path length to that node
@@ -46,56 +46,17 @@ class HaltonPlanner(object):
     #   the node ids that you have found.
     #-------------------------------------------------------------
 
-    # while len(self.priorities) != 0:
-    #   start = time.clock()
-    #   print "Priority Queue:", len(self.priorities)
-    #   print "Closed Set:", len(self.closed)
-    #
-    #   current = heapq.heappop(self.priorities)[1]  # Collect node with lowest g + h score
-    #
-    #   if current == self.tid:  # Path is found from start to goal; return the path
-    #     return self.get_solution(self.tid)
-    #
-    #   self.closed.add(current)
-    #
-    #   neighbors = self.planningEnv.get_successors(current)
-    #   for neighbor in neighbors:
-    #
-    #     if neighbor in self.closed:  # Already visisted
-    #         continue
-    #
-    #     h_start = time.clock()
-    #     heuristic = self.planningEnv.get_heuristic(current, neighbor)
-    #     print "H-TIME", time.clock() - h_start
-    #     distance = self.planningEnv.get_distance(current, neighbor)
-    #     gValue = self.gValues[current] + distance  # Distance from current to neighbor
-    #
-    #     # Score must be better to be worth recording.
-    #     # If neighbor is not in self.gValues, value is interpreted as infinity.
-    #     if neighbor in self.gValues and gValue >= self.gValues[neighbor]:
-    #       continue  # Score is not better
-    #
-    #     self.parent[neighbor] = current  # Record backpointer
-    #     self.gValues[neighbor] = gValue  # Record distance
-    #
-    #     # Update priority queue
-    #     heapq.heappush(self.priorities, (self.gValues[neighbor] + heuristic, neighbor))
-    #
-    #   print "Time", time.clock() - start
-
-
-    while len(self.open) != 0:
+    while len(self.priorities) != 0:
       start = time.clock()
-      # print "Priority Queue:", len(self.priorities)
+      print "Priority Queue:", len(self.priorities)
       print "Closed Set:", len(self.closed)
 
-      current = min(self.open, key=self.open.get)  # Collect node with lowest g + h score
+      current = heapq.heappop(self.priorities)[1]  # Collect node with lowest g + h score
 
       if current == self.tid:  # Path is found from start to goal; return the path
         return self.get_solution(self.tid)
 
       self.closed.add(current)
-      del self.open[current]
 
       neighbors = self.planningEnv.get_successors(current)
       for neighbor in neighbors:
@@ -103,7 +64,9 @@ class HaltonPlanner(object):
         if neighbor in self.closed:  # Already visisted
             continue
 
+        h_start = time.clock()
         heuristic = self.planningEnv.get_heuristic(current, neighbor)
+        print "H-TIME", time.clock() - h_start
         distance = self.planningEnv.get_distance(current, neighbor)
         gValue = self.gValues[current] + distance  # Distance from current to neighbor
 
@@ -116,10 +79,47 @@ class HaltonPlanner(object):
         self.gValues[neighbor] = gValue  # Record distance
 
         # Update priority queue
-        self.open[neighbor] = self.gValues[neighbor] + heuristic
+        heapq.heappush(self.priorities, (self.gValues[neighbor] + heuristic, neighbor))
 
       print "Time", time.clock() - start
-    print "Total Time ", time.clock() - begginning
+
+    #
+    # while len(self.open) != 0:
+    #   start = time.clock()
+    #   # print "Priority Queue:", len(self.priorities)
+    #   print "Closed Set:", len(self.closed)
+    #
+    #   current = min(self.open, key=self.open.get)  # Collect node with lowest g + h score
+    #
+    #   if current == self.tid:  # Path is found from start to goal; return the path
+    #     return self.get_solution(self.tid)
+    #
+    #   self.closed.add(current)
+    #   del self.open[current]
+    #
+    #   neighbors = self.planningEnv.get_successors(current)
+    #   for neighbor in neighbors:
+    #
+    #     if neighbor in self.closed:  # Already visisted
+    #         continue
+    #
+    #     heuristic = self.planningEnv.get_heuristic(current, neighbor)
+    #     distance = self.planningEnv.get_distance(current, neighbor)
+    #     gValue = self.gValues[current] + distance  # Distance from current to neighbor
+    #
+    #     # Score must be better to be worth recording.
+    #     # If neighbor is not in self.gValues, value is interpreted as infinity.
+    #     if neighbor in self.gValues and gValue >= self.gValues[neighbor]:
+    #       continue  # Score is not better
+    #
+    #     self.parent[neighbor] = current  # Record backpointer
+    #     self.gValues[neighbor] = gValue  # Record distance
+    #
+    #     # Update priority queue
+    #     self.open[neighbor] = self.gValues[neighbor] + heuristic
+    #
+    #   print "Time", time.clock() - start
+    # print "Total Time ", time.clock() - begginning
 
 
     return []
@@ -181,10 +181,12 @@ class HaltonPlanner(object):
       goalPixel = Utils.world_to_map(plan[i+1], self.planningEnv.manager.map_info)
       cv2.line(envMap,(startPixel[0],startPixel[1]),(goalPixel[0],goalPixel[1]),(255,0,0),5)
 
-    # Generate window
-    cv2.namedWindow('Simulation', cv2.WINDOW_NORMAL)
-    cv2.imshow('Simulation', envMap)
-
-    # Terminate and exit elegantly
-    cv2.waitKey(20000)
-    cv2.destroyAllWindows()
+    # # Generate window
+    # cv2.namedWindow('Simulation' + str(self.count), cv2.WINDOW_NORMAL)
+    # cv2.imshow('Simulation' + str(self.count), envMap)
+    #
+    # # Terminate and exit elegantly
+    # cv2.waitKey(10000)
+    # cv2.destroyAllWindows()
+    plt.imshow(envMap)
+    plt.show()
