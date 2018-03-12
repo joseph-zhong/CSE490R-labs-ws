@@ -62,7 +62,7 @@ def map_to_world(pose, map_info):
     # we need to store the x coordinates since they will be overwritten
     temp = np.copy(pose[0])
     config[0] = (c*pose[0] - s*pose[1])
-    config[1] = (s*temp       + c*pose[1])
+    config[1] = map_info.height - (s*temp       + c*pose[1])
 
     config[0] *= float(scale)
     config[1] *= float(scale)
