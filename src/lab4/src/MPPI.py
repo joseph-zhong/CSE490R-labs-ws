@@ -80,7 +80,7 @@ class MPPIController(object):
 
     self.msgid = 0
 
-    # visualization paramters
+    # visualization parameters
     self.num_viz_paths = 40
     if K < self.num_viz_paths:
       self.num_viz_paths = K
@@ -118,6 +118,13 @@ class MPPIController(object):
 
     self.pose_sub = rospy.Subscriber("/pf/viz/inferred_pose",
                                      PoseStamped, self.mppi_cb, queue_size=1)
+
+    print "Publishing goal waypoints..."
+    self.goal_pub = rospy.Publisher("waypoints", Path, queue_size=20)
+    self.pa = Path()
+    frame_id = 'map'
+    self.pa.header = Utils.make_header(frame_id)
+    self.pa.poses = map(Utils.particle_to_posestamped, self.path, [frame_id] * len(self.path))
 
   # You may want to debug your bounds checking code here, by clicking on a part
   # of the map and convincing yourself that you are correctly mapping the
@@ -182,9 +189,10 @@ class MPPIController(object):
 
   def mppi(self, curr_pose, init_input):
     t0 = time.time()
-    print "mppi: Current Pose:", self.last_pose.cpu()
-    print "mppi: Current Goal:", self.goal.cpu()
+    print "mppi: Current Pose:", self.last_pose.cpu().numpy()
+    print "mppi: Current Goal:", self.goal.cpu().numpy()
     print "mppi: Current Path idx:", self.curr_goal_idx
+    self.goal_pub.publish(self.pa)
     if self.is_far_from_goal(curr_pose):
       # Network input can be:
       #   0    1       2          3           4        5      6   7
