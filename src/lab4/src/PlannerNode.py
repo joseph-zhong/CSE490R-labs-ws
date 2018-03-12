@@ -8,6 +8,10 @@ from HaltonPlanner import HaltonPlanner
 from HaltonEnvironment import HaltonEnvironment
 import KinematicModel as model
 
+from geometry_msgs.msg import PoseArray, Pose, PoseStamped
+
+import Utils
+
 PLANNER_SERVICE_TOPIC = '/planner_node/get_plan' # The topic that the planning service is provided on
 POST_PROCESS_MAX_TIME = 5.0
 
@@ -44,8 +48,44 @@ class PlannerNode(object):
     target = np.array(req.target).reshape(3)
 
     self.environment.set_source_and_target(source, target) # Tell environment what source and target are
-    
+
+    # pub = rospy.Publisher("/debug/", PoseArray, queue_size=1)
+    # pa = PoseArray()
+    # pa.header.frame_id = "map"
+    # pa.header.stamp = rospy.Time.now()
+    # for i in xrange(self.environment.graph.number_of_nodes()):
+    #   config = self.environment.get_config(i)
+    #   ps = Pose()
+    #   ps.position.x = config[0]
+    #   ps.position.y = config[1]
+    #   ps.orientation = Utils.angle_to_quaternion(config[2])
+    #   pa.poses.append(ps)
+    #
+    # while not rospy.is_shutdown():
+    #   pub.publish(pa)
+    #   rospy.sleep(1)
+
+
+
+    # print 'hello'
+    # pub = rospy.Publisher("/debug/", PoseStamped, queue_size=1)
+    # ps = PoseStamped()
+    # ps.header.frame_id = "map"
+    # ps.header.stamp = rospy.Time.now()
+    #
+    # ps.pose.position.x = source[0]
+    # ps.pose.position.y = source[1]
+    # ps.pose.orientation = Utils.angle_to_quaternion(source[2])
+    #
+    # while not rospy.is_shutdown():
+    #   pub.publish(ps)
+    #   rospy.sleep(1)
+
+
+
+
     # Check if planning is trivially infeasible on this environment
+    print "Checking if planning is trivially infeasible on this environment..."
     if not self.environment.manager.get_state_validity(source):
       print 'Source in collision'
       return [[],False]
@@ -59,15 +99,36 @@ class PlannerNode(object):
     if plan:
       plan = self.planner.post_process(plan, POST_PROCESS_MAX_TIME) # Try to improve plan
       if self.visualize:
-        self.planner.simulate(plan) # Visualize plan
+        # Matplotlib.
+        print 'hi'
+        # self.planner.simulate(plan)
+
+        # RViz
+        # pub = rospy.Publisher("/debug/", PoseArray, queue_size=1)
+        # pa = PoseArray()
+        # pa.header.frame_id = "map"
+        # pa.header.stamp = rospy.Time.now()
+        # for i in xrange(len(plan)):
+        #   # config = self.environment.get_config(i)
+        #   config = plan[i]
+        #   ps = Pose()
+        #   ps.position.x = config[0]
+        #   ps.position.y = config[1]
+        #   ps.orientation = Utils.angle_to_quaternion(config[2])
+        #   pa.poses.append(ps)
+        #
+        # while not rospy.is_shutdown():
+        #   pub.publish(pa)
+        #   rospy.sleep(1)
+
       flat_plan = [el for config in plan for el in config] # Convert to a flat list
       return [flat_plan, True]
     else:
       return [[],False]
     
 if __name__ == '__main__':
+  print 'in main'
   rospy.init_node('planner_node', anonymous=True)
-
   pn = PlannerNode()
   
   rospy.spin()  
