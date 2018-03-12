@@ -100,8 +100,8 @@ class PlannerNode(object):
       plan = self.planner.post_process(plan, POST_PROCESS_MAX_TIME) # Try to improve plan
       if self.visualize:
         # Matplotlib.
-        print 'hi'
-        # self.planner.simulate(plan)
+        # print 'hi'
+        self.planner.simulate(plan)
 
         # RViz
         # pub = rospy.Publisher("/debug/", PoseArray, queue_size=1)

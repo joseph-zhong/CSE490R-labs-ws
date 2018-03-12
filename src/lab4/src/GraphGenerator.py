@@ -134,7 +134,8 @@ if __name__ == "__main__":
         print i
         numpy.random.seed()
         offset = numpy.random.random_sample(spaceDimension,)
-        riskmapFile = 'haltonGraph.graphml'
+        riskmapFile = 'haltonGraph_drad{disc_radius}_pts{halton_points}.graphml'.format(
+            disc_radius=disc_radius, halton_points=halton_points)
 
         # Generate the graph
         print 'Generating the graph at', riskmapFile

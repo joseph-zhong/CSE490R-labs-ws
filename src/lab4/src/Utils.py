@@ -85,7 +85,7 @@ def csv_to_configs(file_path):
 
 def angle_between_points(point1, point2):
     x = float(point2[0] - point1[0])
-    y = float(point2[1] - point1[1])
+    y = float(point1[1] - point2[1])
     angle = np.arctan(y/x)
     if angle < 0.0:
         angle += np.pi * 2

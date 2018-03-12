@@ -58,8 +58,8 @@ class ObstacleManager(object):
 
     assert isinstance(mapConfig, (list, tuple)) and len(mapConfig) == 3
     x, y, theta = mapConfig
-    halfLen = self.robotLength / 2
-    halfWidth = self.robotWidth / 2
+    halfLen = int(self.robotLength / 2.0 * 1.2)
+    halfWidth = int(self.robotWidth / 2.0 * 1.2)
     # REVIEW josephz: Figure out how to incorporate theta to differentiate the two cases?
     # Validity for car length along the map length.
     valid = self.mapImageBW[
@@ -104,6 +104,7 @@ class ObstacleManager(object):
     path = Dubins.dubins_path_planning(config1, config2, 1.0 / model.TURNING_RADIUS)
     xs, ys, thetas, _ = path
     configs = [[xs[i], ys[i], thetas[i]] for i in range(len(xs))]
+
     return all([self.get_state_validity(config) for config in configs])
 
 # Test

@@ -53,7 +53,7 @@ class MPPI_Planner(object):
     blues_array = Utils.csv_to_configs(GOOD_WAYPOINTS_FNAME)
 
     self.full_path = self.process_all_blues(start_pose, blues_array)
-    np.save('paths/full_dubins_path.npy', self.full_path)
+    np.save('paths/full_dubins_path_10_300.npy', self.full_path)
 
   # Returns a numpy array of shape (N, 3)
   def process_all_blues(self, start_pose, blues_array):
