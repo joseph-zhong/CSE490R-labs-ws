@@ -62,15 +62,6 @@ class MPPI_Planner(object):
 
     print "[mppi_planner process_all_blues:] All Poses:", all_poses
 
-    # start_pose_map = np.append(start_pose[0], Utils.angle_between_points(start_pose[0], blues_array[0]))
-    # first_blue_map = np.append(blues_array[0], Utils.angle_between_points(blues_array[0], blues_array[1]))
-    # start_pose_world = Utils.map_to_world(start_pose_map, self.map_info)
-    # first_blue_world = Utils.map_to_world(first_blue_map, self.map_info)
-    #
-    # print "Planning from", start_pose_map, "to ", first_blue_map
-    # resp = self.get_plan(start_pose_world, first_blue_world)  # Get the plan from the service
-    # resp = np.array(resp.plan).reshape(-1, 3)
-
     len_all_poses = all_poses.shape[0]
     resp = np.empty((0, 3))
 
