@@ -79,6 +79,17 @@ class ObstacleManager(object):
     # plt.show()
     return np.sum(valid) == np.sum(valid2) == 0
 
+  def get_edge_validity_helper(self, configs, lo, hi):
+    if lo > hi:
+      return True
+
+    mid = (lo + hi) // 2
+    mid_valid = self.get_state_validity(configs[mid])
+    return mid_valid and self.get_edge_validity_helper(configs, lo, mid - 1) and \
+           self.get_edge_validity_helper(configs, mid + 1, hi)
+
+
+
   # Check if there is an unobstructed edge between the passed configs
   # config1, config2: The configurations to check (in meters and radians)
   # Returns false if obstructed edge, True otherwise
@@ -105,7 +116,7 @@ class ObstacleManager(object):
     xs, ys, thetas, _ = path
     configs = [[xs[i], ys[i], thetas[i]] for i in range(len(xs))]
 
-    return all([self.get_state_validity(config) for config in configs])
+    return self.get_edge_validity_helper(configs, 0, len(configs) - 1)
 
 # Test
 if __name__ == '__main__':

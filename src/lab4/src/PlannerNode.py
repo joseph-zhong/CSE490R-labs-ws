@@ -29,7 +29,7 @@ class PlannerNode(object):
     self.environment = HaltonEnvironment(self.map_msg, graph_file, None, None) # Create the Halton Environment
     self.planner = HaltonPlanner(self.environment) # Create the Halton Planner
     self.server = rospy.Service(PLANNER_SERVICE_TOPIC, GetPlan, self.plan_cb) # Offer planning service
-    print 'Ready to plan'
+    print 'Ready to plan using graph_file:', graph_file
     
   # Called when client wants to generate a plan  
   def plan_cb(self, req):

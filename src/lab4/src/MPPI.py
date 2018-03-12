@@ -22,16 +22,16 @@ from geometry_msgs.msg import PoseStamped, PoseArray, PoseWithCovarianceStamped,
 
 MAX_ANGLE = 0.34
 MAX_VEL = 2.0
-T = 15
+T = 20
 K = 1000
 C = 1000000
 STEERING_SIGMA = 0.3  # These values will need to be tuned
 VELOCITY_SIGMA = 0.4
 _LAMBDA = 0.1
-THETA_WEIGHT = 1.0
+THETA_WEIGHT = 0.3
 
-DIST_THRES = 0.50
-THETA_THRES = np.pi / 8
+DIST_THRES = 0.35
+THETA_THRES = np.pi / 7
 
 # MPPI With A* Planning
 GOAL_STEP = 1
@@ -100,7 +100,8 @@ class MPPIController(object):
     self.path = np.load('/home/nvidia/catkin_ws/src/lab4/paths/full_dubins_path_10_300.npy')
     print "Successfully loaded path of shape (without y-axis)", self.path.shape
 
-    # self.path = self.path[-310:]
+    # Set offset to begin with.
+    self.path = self.path[-350:]
 
     print "Loaded path: first ten goals:", self.path[:10]
     print "Loaded path: last ten goals:", self.path[-10:]
@@ -114,6 +115,8 @@ class MPPIController(object):
     print "Setting up permissible region from map..."
     self.map_height = map_msg.info.height
     self.map_width = map_msg.info.width
+
+    
     array_255 = np.array(map_msg.data).reshape((map_msg.info.height, map_msg.info.width))
     self.permissible_region = np.zeros_like(array_255, dtype=bool)
     self.permissible_region[array_255 == 0] = 1  # Numpy array of dimension (map_msg.info.height, map_msg.info.width),

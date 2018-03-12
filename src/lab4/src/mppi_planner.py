@@ -26,7 +26,7 @@ PLANNER_SERVICE_TOPIC = '/planner_node/get_plan'  # The topic at which the servi
 
 START_POSE_FNAME = "maps/start.csv"
 GOOD_WAYPOINTS_FNAME = "maps/good_waypoints.csv"
-DUBINS_PATH_FNAME = 'paths/full_dubins_path.npy'
+DUBINS_PATH_FNAME = 'paths/full_dubins_path_10_300_obstructed.npy'
 
 class MPPI_Planner(object):
   def __init__(self):
@@ -53,7 +53,8 @@ class MPPI_Planner(object):
     blues_array = Utils.csv_to_configs(GOOD_WAYPOINTS_FNAME)
 
     self.full_path = self.process_all_blues(start_pose, blues_array)
-    np.save('paths/full_dubins_path_10_300.npy', self.full_path)
+    print "SAVING NUMPY OF SHAPE", self.full_path.shape, "to", DUBINS_PATH_FNAME
+    np.save(DUBINS_PATH_FNAME, self.full_path)
 
   # Returns a numpy array of shape (N, 3)
   def process_all_blues(self, start_pose, blues_array):
