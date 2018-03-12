@@ -31,8 +31,7 @@ class ObstacleManager(object):
     # Binarize the Image
     self.mapImageBW = 255*numpy.ones_like(self.mapImageGS, dtype=numpy.uint8)
     self.mapImageBW[self.mapImageGS==0] = 0
-    self.mapImageBW = self.mapImageBW[::-1, :, :] # Need to flip across the y-axis
-    print "self.mapImageBW.shape:", self.mapImageBW.shape
+    print "self.mapImageBW.shape (without y-axis flipping):", self.mapImageBW.shape
 
     # Obtain the car length and width in pixels
     self.robotWidth = int(model.CAR_WIDTH/self.map_info.resolution + 0.5)
