@@ -24,8 +24,8 @@ PLANNER_SERVICE_TOPIC = '/planner_node/get_plan'  # The topic at which the servi
 # SOURCE = [-8.76,  -2.04, 0.0]
 # TARGET = [-10.68,  -24.28, 0.0]
 
-START_POSE_FNAME = "maps/start.csv"
-GOOD_WAYPOINTS_FNAME = "maps/good_waypoints.csv"
+START_POSE_FNAME = "/home/tim/catkin_ws/src/CSE490R-labs-ws/src/lab4/graph_files/gates_map/start.csv"
+GOOD_WAYPOINTS_FNAME = "/home/tim/catkin_ws/src/CSE490R-labs-ws/src/lab4/graph_files/gates_map/good_waypoints.csv"
 DUBINS_PATH_FNAME = 'paths/full_dubins_path.npy'
 
 class MPPI_Planner(object):
@@ -53,6 +53,7 @@ class MPPI_Planner(object):
     blues_array = Utils.csv_to_configs(GOOD_WAYPOINTS_FNAME)
 
     self.full_path = self.process_all_blues(start_pose, blues_array)
+
     np.save('paths/full_dubins_path.npy', self.full_path)
 
   # Returns a numpy array of shape (N, 3)

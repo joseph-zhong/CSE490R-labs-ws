@@ -1,7 +1,7 @@
 <launch>
 
 
-    <!--<include file="$(find lab3)/launch/MapServer.launch"/>-->
+    <include file="$(find lab3)/launch/MapServer.launch"/>
 
 	<arg name="ctrl_topic" default="/vesc/high_level/ackermann_cmd_mux/input/nav_0"/>
 	<arg name="static_map" default="static_map"/>

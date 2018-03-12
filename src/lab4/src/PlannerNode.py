@@ -27,7 +27,7 @@ class PlannerNode(object):
     graph_file = rospy.get_param("~graph_file", None) # Get the name of the halton graph file
     self.visualize = rospy.get_param("~visualize", False)
     self.environment = HaltonEnvironment(self.map_msg, graph_file, None, None) # Create the Halton Environment
-    self.planner = HaltonPlanner(self.environment) # Create the Halton Planner
+    self.planner = HaltonPlanner(self.environment) #on Create the Halton Planner
     self.server = rospy.Service(PLANNER_SERVICE_TOPIC, GetPlan, self.plan_cb) # Offer planning service
     print 'Ready to plan'
     
@@ -48,6 +48,7 @@ class PlannerNode(object):
     target = np.array(req.target).reshape(3)
 
     self.environment.set_source_and_target(source, target) # Tell environment what source and target are
+    print "HIT"
 
     # pub = rospy.Publisher("/debug/", PoseArray, queue_size=1)
     # pa = PoseArray()
@@ -101,7 +102,7 @@ class PlannerNode(object):
       if self.visualize:
         # Matplotlib.
         print 'hi'
-        # self.planner.simulate(plan)
+        self.planner.simulate(plan)
 
         # RViz
         # pub = rospy.Publisher("/debug/", PoseArray, queue_size=1)

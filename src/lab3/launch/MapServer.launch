@@ -1,5 +1,5 @@
 <launch>
     <!--<arg name="map" default="$(find lab3)/maps/real-floor4_corridor.yaml"/>-->
     <arg name="map" default="$(find lab1)/maps/sieg_floor3.yaml"/>
-    <node pkg="map_server" name="map_server" type="map_server" args="$(arg map)" />
+    <node pkg="map_server" name="map_server_obstructed" type="map_server" args="$(arg map)" />
 </launch>
