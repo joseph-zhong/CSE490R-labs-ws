@@ -21,9 +21,9 @@ class HaltonEnvironment(object):
     self.manager = ObstacleManager(mapMsg)
 
     # Generate the Graph on the fly if required
-    self.radius = 100
+    self.radius = 10
     if graphFile is None:
-      n = 500
+      n = 300
       bases = [2,3,5] # Should be prime numbers
       lower = [0,0,0] # The lowest possible values for the config
       upper = [64,75,2*numpy.pi] # The highest possible values for the config
