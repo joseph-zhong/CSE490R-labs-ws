@@ -7,10 +7,13 @@ import time
 
 from std_msgs.msg import Bool
 import Utils as Utils
+import UtilsTh as UtilsTh
 from nav_msgs.srv import GetMap
+from nav_msgs.msg import Path
 
 
-from geometry_msgs.msg import PoseStamped
+
+from geometry_msgs.msg import PoseStamped, PoseArray, Point
 from lab4.srv import *
 
 PLANNER_SERVICE_TOPIC = '/planner_node/get_plan'  # The topic at which the service is available
@@ -27,11 +30,15 @@ PLANNER_SERVICE_TOPIC = '/planner_node/get_plan'  # The topic at which the servi
 START_POSE_FNAME = "/home/tim/catkin_ws/src/CSE490R-labs-ws/src/lab4/received/start.csv"
 GOOD_WAYPOINTS_FNAME = "/home/tim/catkin_ws/src/CSE490R-labs-ws/src/lab4/received/good_waypoints.csv"
 DUBINS_PATH_FNAME = 'paths/full_dubins_path.npy'
+STEP_NUMBER = 1
 
 class MPPI_Planner(object):
   def __init__(self):
 
     self.goal_pub = rospy.Publisher("/move_base_simple/goal", PoseStamped, queue_size=1)
+    self.path_pub = rospy.Publisher("waypoints", Path, queue_size=20)
+    self.pose_array_pub = rospy.Publisher("poses", PoseArray, queue_size=40)
+    self.blue_waypoints_pub = rospy.Publisher("blue waypoints", Point, queue_size=5)
 
     map_service_name = rospy.get_param("~static_map", "static_map")
     print("Getting map from service: ", map_service_name)
@@ -49,8 +56,13 @@ class MPPI_Planner(object):
     print "Reading starting pose and blue_array..."
     assert os.path.isfile(START_POSE_FNAME), "{} not found, make sure to run from a dir relative to that file, try `roscd lab4`".format(START_POSE_FNAME)
     assert os.path.isfile(GOOD_WAYPOINTS_FNAME), "{} not found, make sure to run from a dir relative to that file, try `roscd lab4`".format(GOOD_WAYPOINTS_FNAME)
+    assert os.path.isdir('paths'), "paths directory not found, try `roscd lab4`"
+
     start_pose = Utils.csv_to_configs(START_POSE_FNAME)
     blues_array = Utils.csv_to_configs(GOOD_WAYPOINTS_FNAME)
+
+
+
 
     self.full_path = self.process_all_blues(start_pose, blues_array)
 
@@ -58,6 +70,14 @@ class MPPI_Planner(object):
 
   # Returns a numpy array of shape (N, 3)
   def process_all_blues(self, start_pose, blues_array):
+    # For visualization
+    pa = Path()
+    pose_array = PoseArray()
+    frame_id = 'map'
+    pa.header = UtilsTh.make_header(frame_id)
+    pose_array.header = UtilsTh.make_header(frame_id)
+
+
     print "[mppi_planner process_all_blues:] entering process_all_blues..."
     all_poses = np.concatenate((start_pose, blues_array), axis=0)
 
@@ -82,7 +102,16 @@ class MPPI_Planner(object):
       new_resp = self.get_plan(prev, curr)
       print "[mppi_planner process_all_blues:] new_resp:", new_resp
       new_resp = np.array(new_resp.plan).reshape(-1, 3)
+      new_resp = new_resp[1:-1][::STEP_NUMBER]
+      new_resp[0] = prev
+      new_resp[-1] = curr
+
       resp = np.append(resp, new_resp, axis=0)
+      pa.poses = map(UtilsTh.particle_to_posestamped, resp, [frame_id] * len(resp))
+      pose_array.poses = map(UtilsTh.particle_to_pose, resp)
+      self.path_pub.publish(pa)
+      self.pose_array_pub.publish(pose_array)
+
 
     print "[mppi_planner process_all_blues:] resp:", resp
     return resp

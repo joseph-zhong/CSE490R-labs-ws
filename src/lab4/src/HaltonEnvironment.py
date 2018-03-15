@@ -29,8 +29,8 @@ class HaltonEnvironment(object):
       upper = [64,75,2*numpy.pi] # The highest possible values for the config
 
       G = GraphGenerator.euclidean_halton_graph(n, self.radius, bases, lower, upper, source, target, mapMsg) # Create the graph
-      nx.write_graphml(G, "haltonGraph.graphml") # Save the graph
-      self.graph = nx.read_graphml("haltonGraph.graphml") # Read the graph (that we just saved, probably not necessary)
+      nx.write_graphml(G, "bad_haltonGraph.graphml") # Save the graph
+      self.graph = nx.read_graphml("bad_haltonGraph.graphml") # Read the graph (that we just saved, probably not necessary)
 
     else:
       # Check if graph file exists
