@@ -132,7 +132,8 @@ def _isFar(a, b):
   import MPPI
   diff = np.abs(a - b)
   angle_between = min(diff[2], np.pi * 2 - diff[2])
-  is_far = diff[0] >= MPPI.DIST_THRES or diff[1] >= MPPI.DIST_THRES or angle_between >= MPPI.THETA_THRES
+  is_far = diff[0] >= MPPI.DIST_THRES / 2.0 or diff[1] >= MPPI.DIST_THRES / 2.0 \
+           or angle_between >= MPPI.THETA_THRES
   # print "exiting is_far_to_goal, diff:", diff, "angle_between:", angle_between, "is far?", is_far
   return is_far
 
