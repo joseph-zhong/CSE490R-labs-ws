@@ -1,5 +1,5 @@
 <launch>
     <!--<arg name="map" default="$(find lab1)/maps/real-floor4_corridor.yaml"/>-->
-    <arg name="map" default="$(find lab4)/received/sieg_floor3_radius5.yaml"/>
+    <arg name="map" default="$(find lab4)/received/sieg_floor3_radius6.yaml"/>
     <node pkg="map_server" name="map_server" type="map_server" args="$(arg map)" />
 </launch>

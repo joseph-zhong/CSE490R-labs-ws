@@ -125,8 +125,8 @@ if __name__ == "__main__":
     upper = numpy.array([map_info.origin.position.x+map_info.resolution*map_info.width, map_info.origin.position.y+map_info.resolution*map_info.height, 2*numpy.pi])
 
     # Settings
-    halton_points = 500 # TODO: Set this appropriately
-    disc_radius = 7 # TODO: Set this appropriately
+    halton_points = 300 # TODO: Set this appropriately
+    disc_radius = 10 # TODO: Set this appropriately
     print("disc_radius:", disc_radius)
     print("halton_points:", halton_points)
 
@@ -134,7 +134,7 @@ if __name__ == "__main__":
         print i
         numpy.random.seed()
         offset = numpy.random.random_sample(spaceDimension,)
-        riskmapFile = 'haltonGraph.graphml'
+        riskmapFile = 'haltonGraph_6_300_10.graphml'
 
         # Generate the graph
         print 'Generating the graph at', riskmapFile

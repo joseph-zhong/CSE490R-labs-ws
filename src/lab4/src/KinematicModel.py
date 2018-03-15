@@ -6,7 +6,7 @@ CAR_LENGTH = 0.33 # [meters]
 CAR_WHEELBASE = 0.0 # [meters]
 
 # TURNING_RADIUS = 0.3 # [meters]
-TURNING_RADIUS = 0.60 # [meters]
+TURNING_RADIUS = 0.70 # [meters]
 
 MAX_VELOCITY = 0.0 # [meters/second]
 MAX_ACCELERATION = 0.0 # [meters/second^2]
