@@ -27,8 +27,12 @@ PLANNER_SERVICE_TOPIC = '/planner_node/get_plan'  # The topic at which the servi
 # SOURCE = [-8.76,  -2.04, 0.0]
 # TARGET = [-10.68,  -24.28, 0.0]
 
-START_POSE_FNAME = "/home/tim/catkin_ws/src/CSE490R-labs-ws/src/lab4/received/start.csv"
-GOOD_WAYPOINTS_FNAME = "/home/tim/catkin_ws/src/CSE490R-labs-ws/src/lab4/received/good_waypoints.csv"
+# START_POSE_FNAME = "/home/tim/catkin_ws/src/CSE490R-labs-ws/src/lab4/received/start.csv"
+# GOOD_WAYPOINTS_FNAME = "/home/tim/catkin_ws/src/CSE490R-labs-ws/src/lab4/received/good_waypoints.csv"
+
+START_POSE_FNAME = "received/start.csv"
+GOOD_WAYPOINTS_FNAME = "received/good_waypoints.csv"
+
 DUBINS_PATH_FNAME = 'paths/full_dubins_path.npy'
 STEP_NUMBER = 1
 
@@ -38,7 +42,7 @@ class MPPI_Planner(object):
     self.goal_pub = rospy.Publisher("/move_base_simple/goal", PoseStamped, queue_size=1)
     self.path_pub = rospy.Publisher("waypoints", Path, queue_size=20)
     self.pose_array_pub = rospy.Publisher("poses", PoseArray, queue_size=40)
-    self.blue_waypoints_pub = rospy.Publisher("blue waypoints", Point, queue_size=5)
+    self.blue_waypoints_pub = rospy.Publisher("blue_waypoints", Point, queue_size=5)
 
     map_service_name = rospy.get_param("~static_map", "static_map")
     print("Getting map from service: ", map_service_name)
@@ -102,11 +106,17 @@ class MPPI_Planner(object):
       new_resp = self.get_plan(prev, curr)
       print "[mppi_planner process_all_blues:] new_resp:", new_resp
       new_resp = np.array(new_resp.plan).reshape(-1, 3)
-      new_resp = new_resp[1:-1][::STEP_NUMBER]
-      new_resp[0] = prev
-      new_resp[-1] = curr
 
-      resp = np.append(resp, new_resp, axis=0)
+      # Interpolate the path.
+      pruned_new_resp = [prev]
+      for j in xrange(len(new_resp) - 1):
+        a = pruned_new_resp[-1]
+        b = new_resp[j+1]
+        if _isFar(a, b):
+          pruned_new_resp.append(b)
+      pruned_new_resp[-1] = curr
+
+      resp = np.append(resp, np.array(pruned_new_resp), axis=0)
       pa.poses = map(UtilsTh.particle_to_posestamped, resp, [frame_id] * len(resp))
       pose_array.poses = map(UtilsTh.particle_to_pose, resp)
       self.path_pub.publish(pa)
@@ -115,6 +125,16 @@ class MPPI_Planner(object):
 
     print "[mppi_planner process_all_blues:] resp:", resp
     return resp
+
+
+def _isFar(a, b):
+  """ Configs are [x, y, theta] configurations in world space."""
+  import MPPI
+  diff = np.abs(a - b)
+  angle_between = min(diff[2], np.pi * 2 - diff[2])
+  is_far = diff[0] >= MPPI.DIST_THRES or diff[1] >= MPPI.DIST_THRES or angle_between >= MPPI.THETA_THRES
+  # print "exiting is_far_to_goal, diff:", diff, "angle_between:", angle_between, "is far?", is_far
+  return is_far
 
 if __name__ == '__main__':
   print "[mppi_planner main:] entered main..."

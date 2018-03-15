@@ -188,8 +188,8 @@ class MPPIController(object):
     angle_between = min(diff[2], np.pi * 2 - diff[2])
     is_far = diff[0] >= DIST_THRES or diff[1] >= DIST_THRES or angle_between >= THETA_THRES
     # print "exiting is_far_to_goal, diff:", diff, "angle_between:", angle_between, "is far?", is_far
-    print
     return is_far
+
 
   def mppi(self, curr_pose, init_input):
     t0 = time.time()
