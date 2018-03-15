@@ -33,6 +33,10 @@ THETA_WEIGHT = 2.0
 DIST_THRES = 0.35
 THETA_THRES = np.pi / 4
 
+# Last action scalar.
+# REVIEW josephz: Should this be a vector for tuning against both speed and steering?
+LAST_RUN_SCALAR = 1.0
+
 
 class MPPIController(object):
   def __init__(self):
@@ -102,6 +106,10 @@ class MPPIController(object):
     self.last_pose = None
     self.goal = torch.cuda.FloatTensor(self.path[1])  # Lets keep track of the goal pose (world frame) over time
     self.lasttime = None
+
+    # Last actions to return to prevent sending 0 control.
+    self.last_run_ctrl = None
+    self.last_run_poses = None
 
     # Create numpy array representing map for later use
     print "Setting up permissible region from map..."
@@ -281,6 +289,8 @@ class MPPIController(object):
 
       run_ctrl = self.controls[:, 0]
       poses = self.rollouts.transpose(0, 1)  # Input to particle_to_posestamped should be (K, T, 3)
+      self.last_run_ctrl = run_ctrl
+      self.last_run_poses = poses
       return run_ctrl, poses
     else:
       # Set new goal if self.path is non-empty
@@ -289,6 +299,8 @@ class MPPIController(object):
       x, y, theta = self.path[self.curr_goal_idx]
       self.goal = torch.cuda.FloatTensor([x, y, theta])
 
+      if self.last_run_ctrl is not None and self.last_run_poses is not None:
+        return LAST_RUN_SCALAR * self.last_run_ctrl, self.last_run_poses
       # Next controls for new goal have not been computed yet.
       return torch.cuda.FloatTensor([0.0, 0.0]), torch.cuda.FloatTensor(T, K, 3).zero_()
 
