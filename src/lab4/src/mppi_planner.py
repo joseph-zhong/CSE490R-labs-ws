@@ -38,7 +38,7 @@ class MPPI_Planner(object):
     self.goal_pub = rospy.Publisher("/move_base_simple/goal", PoseStamped, queue_size=1)
     self.path_pub = rospy.Publisher("waypoints", Path, queue_size=20)
     self.pose_array_pub = rospy.Publisher("poses", PoseArray, queue_size=40)
-    self.blue_waypoints_pub = rospy.Publisher("blue waypoints", Point, queue_size=5)
+    self.blue_waypoints_pub = rospy.Publisher("blue_waypoints", Point, queue_size=5)
 
     map_service_name = rospy.get_param("~static_map", "static_map")
     print("Getting map from service: ", map_service_name)
